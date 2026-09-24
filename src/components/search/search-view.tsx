@@ -17,14 +17,17 @@ import {
 	LayoutList,
 	LayoutGrid,
 	Calendar,
+	Trash2,
 } from "lucide-react";
+import { useDeletion } from "@/context/DeletionContext";
+import { DeletionDialog } from "@/components/deletion/DeletionDialog";
+import type { IndexStatus, SearchHit } from "@/types/search";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSearch } from "@/hooks/useSearch";
 import { formatBytes } from "@/lib/format";
-import type { IndexStatus } from "@/types/search";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 
@@ -67,7 +70,31 @@ export function SearchView({
 		isLoadingMore,
 		loadMore,
 		clearSearch,
+		removeHit,
 	} = useSearch(currentFolderPath);
+
+	const { requestDelete } = useDeletion();
+
+	const handleRequestDelete = useCallback(
+		(hit: SearchHit) => {
+			requestDelete({
+				name: hit.name,
+				path: hit.path,
+				isDir: hit.isDir,
+				sizeBytes: hit.sizeBytes,
+				fileCount: 0,
+				modified: hit.modified ?? null,
+			});
+		},
+		[requestDelete]
+	);
+
+	const handleItemDeleted = useCallback(
+		(path: string) => {
+			removeHit(path);
+		},
+		[removeHit]
+	);
 
 	// Navigation & View state
 	const [selectedIndex, setSelectedIndex] = useState<number>(-1);
@@ -137,9 +164,18 @@ export function SearchView({
 						handleOpen(hit.path);
 					}
 				}
+			} else if (
+				(e.key === "Delete" || (e.ctrlKey && e.key === "d")) &&
+				selectedIndex >= 0
+			) {
+				e.preventDefault();
+				const hit = hits[selectedIndex];
+				if (hit) {
+					handleRequestDelete(hit);
+				}
 			}
 		},
-		[hits, selectedIndex, onAnalyzeFolder, handleOpen]
+		[hits, selectedIndex, onAnalyzeFolder, handleOpen, handleRequestDelete]
 	);
 
 	// Virtualized row list configuration
@@ -766,6 +802,18 @@ export function SearchView({
 															<BarChart3 className="h-3 w-3" />
 														</Button>
 													)}
+													<Button
+														size="icon"
+														variant="ghost"
+														className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+														onClick={(e) => {
+															e.stopPropagation();
+															handleRequestDelete(hit);
+														}}
+														title={`Delete ${hit.isDir ? "folder" : "file"}`}
+													>
+														<Trash2 className="h-3 w-3" />
+													</Button>
 												</div>
 											</div>
 										</div>
@@ -937,6 +985,18 @@ export function SearchView({
 														<BarChart3 className="h-2.5 w-2.5" />
 													</Button>
 												)}
+												<Button
+													size="icon"
+													variant="ghost"
+													className="h-5 w-5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+													onClick={(e) => {
+														e.stopPropagation();
+														handleRequestDelete(hit);
+													}}
+													title={`Delete ${hit.isDir ? "folder" : "file"}`}
+												>
+													<Trash2 className="h-2.5 w-2.5" />
+												</Button>
 											</div>
 										</div>
 									</Card>
@@ -989,8 +1049,17 @@ export function SearchView({
 						</kbd>{" "}
 						Clear
 					</span>
+					<span className="flex items-center gap-1">
+						<kbd className="px-1 py-0.5 rounded bg-muted border font-mono text-[9px]">
+							Del
+						</kbd>{" "}
+						Delete
+					</span>
 				</div>
 			</div>
+
+			{/* Deletion Confirmation & Active Progress Dialog */}
+			<DeletionDialog onItemDeleted={handleItemDeleted} />
 		</div>
 	);
 }

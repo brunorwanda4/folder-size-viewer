@@ -48,45 +48,34 @@ export function useSearch(currentFolderPath?: string) {
 
       // Create Tauri IPC streaming channel
       const onEvent = new Channel<SearchStreamEvent>();
-      let isFirstBatch = true;
-
       onEvent.onmessage = (event) => {
-        if (reqId !== latestRequestId.current) {
-          return;
-        }
+        if (latestRequestId.current !== reqId) return;
 
         if (event.type === 'batch') {
-          if (isFirstBatch) {
-            isFirstBatch = false;
-            setHits(event.hits);
-          } else {
-            setHits((prev) => {
-              const seen = new Set(prev.map((h) => h.path.toLowerCase()));
-              const fresh = event.hits.filter((h) => !seen.has(h.path.toLowerCase()));
-              return [...prev, ...fresh];
-            });
-          }
+          setHits((prev) => [...prev, ...event.hits]);
           setTotal(event.total);
           setTookMs(event.tookMs);
         } else if (event.type === 'done') {
           setTotal(event.total);
           setTookMs(event.tookMs);
           setIsSearching(false);
+          setIsLoadingMore(false);
         }
       };
 
       try {
+        setHits([]);
         await invoke('stream_search', {
           query: cleanQuery,
           scope: sc,
-          currentPath: sc === 'folder' ? currentFolderPath : undefined,
+          folderPath: sc === 'folder' ? currentFolderPath : undefined,
           mode: m,
-          filterType: ft === 'all' ? undefined : ft,
-          filterCategory: fc === 'all' ? undefined : fc,
+          filterType: ft,
+          category: fc !== 'all' ? fc : undefined,
           onEvent,
         });
       } catch (err: unknown) {
-        if (reqId === latestRequestId.current) {
+        if (latestRequestId.current === reqId) {
           const msg = err instanceof Error ? err.message : String(err);
           setError(msg);
           setIsSearching(false);
@@ -96,7 +85,6 @@ export function useSearch(currentFolderPath?: string) {
     [currentFolderPath]
   );
 
-  // Trigger search when query or filters change (debounced 200ms for responsiveness)
   useEffect(() => {
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
@@ -104,7 +92,7 @@ export function useSearch(currentFolderPath?: string) {
 
     debounceTimer.current = setTimeout(() => {
       performSearch(query, scope, mode, filterType, filterCategory);
-    }, 200);
+    }, 250);
 
     return () => {
       if (debounceTimer.current) {
@@ -123,6 +111,11 @@ export function useSearch(currentFolderPath?: string) {
     setTotal(0);
     setTookMs(0);
     invoke('cancel_search').catch(() => {});
+  }, []);
+
+  const removeHit = useCallback((path: string) => {
+    setHits((prev) => prev.filter((h) => h.path !== path));
+    setTotal((prev) => Math.max(0, prev - 1));
   }, []);
 
   return {
@@ -144,5 +137,6 @@ export function useSearch(currentFolderPath?: string) {
     error,
     loadMore,
     clearSearch,
+    removeHit,
   };
 }
