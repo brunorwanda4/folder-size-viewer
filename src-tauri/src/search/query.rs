@@ -64,8 +64,24 @@ pub struct SearchParams {
     pub mode: String,                // "both" | "names" | "contents"
     pub filter_type: Option<String>, // "all" | "files" | "folders"
     pub filter_category: Option<String>,
+    pub extensions: Option<Vec<String>>,
+    pub modified_from: Option<u64>,
+    pub modified_to: Option<u64>,
+    pub sort_by: Option<String>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
+}
+
+pub fn sort_hits(hits: &mut [SearchHit], sort_by: &str) {
+    match sort_by {
+        "size_desc" => hits.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes)),
+        "size_asc" => hits.sort_by(|a, b| a.size_bytes.cmp(&b.size_bytes)),
+        "date_desc" => hits.sort_by(|a, b| b.modified.unwrap_or(0).cmp(&a.modified.unwrap_or(0))),
+        "date_asc" => hits.sort_by(|a, b| a.modified.unwrap_or(0).cmp(&b.modified.unwrap_or(0))),
+        "name_asc" => hits.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase())),
+        "name_desc" => hits.sort_by(|a, b| b.name.to_lowercase().cmp(&a.name.to_lowercase())),
+        _ => {}
+    }
 }
 
 /// Preprocesses the user query before passing to Tantivy QueryParser:
@@ -217,6 +233,26 @@ pub fn execute_search(
         }
     }
 
+    // Specific Document Types & Extensions filter
+    if let Some(ref exts) = params.extensions {
+        let valid_exts: Vec<String> = exts
+            .iter()
+            .map(|e| e.trim().trim_start_matches('.').to_lowercase())
+            .filter(|e| !e.is_empty())
+            .collect();
+        if !valid_exts.is_empty() {
+            let mut ext_clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
+            for ext in valid_exts {
+                let term = Term::from_field_text(fields.ext, &ext);
+                ext_clauses.push((
+                    Occur::Should,
+                    Box::new(TermQuery::new(term, IndexRecordOption::Basic)),
+                ));
+            }
+            clauses.push((Occur::Must, Box::new(BooleanQuery::new(ext_clauses))));
+        }
+    }
+
     let final_query = BooleanQuery::new(clauses);
 
     // 3. Execute query with TopDocs collector
@@ -272,16 +308,36 @@ pub fn execute_search(
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_millis() as u64);
 
-        hits.push(SearchHit {
-            name,
-            path: path_str,
-            is_dir,
-            size_bytes,
-            modified,
-            category,
-            snippet: None,
-            matched_name_ranges: Vec::new(),
-        });
+        let mut direct_valid = true;
+        if let Some(ref exts) = params.extensions {
+            let valid: Vec<String> = exts.iter().map(|e| e.trim().trim_start_matches('.').to_lowercase()).filter(|e| !e.is_empty()).collect();
+            if !valid.is_empty() && !is_dir && !valid.contains(&ext.to_lowercase()) {
+                direct_valid = false;
+            }
+        }
+        if let Some(from_ms) = params.modified_from {
+            if let Some(m) = modified {
+                if m < from_ms { direct_valid = false; }
+            } else { direct_valid = false; }
+        }
+        if let Some(to_ms) = params.modified_to {
+            if let Some(m) = modified {
+                if m > to_ms { direct_valid = false; }
+            } else { direct_valid = false; }
+        }
+
+        if direct_valid {
+            hits.push(SearchHit {
+                name,
+                path: path_str,
+                is_dir,
+                size_bytes,
+                modified,
+                category,
+                snippet: None,
+                matched_name_ranges: Vec::new(),
+            });
+        }
     }
 
     for (_score, doc_address) in top_docs {
@@ -320,6 +376,17 @@ pub fn execute_search(
             .get_first(fields.modified)
             .and_then(|v| v.as_datetime())
             .map(|dt| dt.into_timestamp_millis() as u64);
+
+        if let Some(from_ms) = params.modified_from {
+            if let Some(m) = modified {
+                if m < from_ms { continue; }
+            } else { continue; }
+        }
+        if let Some(to_ms) = params.modified_to {
+            if let Some(m) = modified {
+                if m > to_ms { continue; }
+            } else { continue; }
+        }
 
         let category = doc
             .get_first(fields.category)
@@ -388,6 +455,10 @@ pub fn execute_search(
             std::time::Duration::from_millis(3000),
         );
         hits.extend(live_hits);
+    }
+
+    if let Some(ref sort_order) = params.sort_by {
+        sort_hits(&mut hits, sort_order);
     }
 
     let total = (total_count as usize).max(hits.len());
@@ -584,6 +655,21 @@ pub fn live_filesystem_search(
                 }
             }
 
+            // Check extensions filter if present
+            if let Some(ref allowed_exts) = params.extensions {
+                let valid: Vec<String> = allowed_exts.iter().map(|e| e.trim().trim_start_matches('.').to_lowercase()).filter(|e| !e.is_empty()).collect();
+                if !valid.is_empty() && !is_dir {
+                    let actual_ext = path
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+                    if !valid.contains(&actual_ext) {
+                        continue;
+                    }
+                }
+            }
+
             // Match checking: All query terms must match in either the file name or the full path
             let matches = query_terms
                 .iter()
@@ -624,6 +710,17 @@ pub fn live_filesystem_search(
                 .and_then(|m| m.modified().ok())
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as u64);
+
+            if let Some(from_ms) = params.modified_from {
+                if let Some(m) = modified {
+                    if m < from_ms { continue; }
+                } else { continue; }
+            }
+            if let Some(to_ms) = params.modified_to {
+                if let Some(m) = modified {
+                    if m > to_ms { continue; }
+                } else { continue; }
+            }
 
             let matched_name_ranges = find_matched_ranges(&file_name, &query_terms);
 
@@ -789,6 +886,21 @@ pub fn stream_live_filesystem_search(
                 }
             }
 
+            // Check extensions filter if present
+            if let Some(ref allowed_exts) = params.extensions {
+                let valid: Vec<String> = allowed_exts.iter().map(|e| e.trim().trim_start_matches('.').to_lowercase()).filter(|e| !e.is_empty()).collect();
+                if !valid.is_empty() && !is_dir {
+                    let actual_ext = path
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+                    if !valid.contains(&actual_ext) {
+                        continue;
+                    }
+                }
+            }
+
             // Match checking: All query terms must match in either the file name or the full path
             let matches = query_terms
                 .iter()
@@ -829,6 +941,17 @@ pub fn stream_live_filesystem_search(
                 .and_then(|m| m.modified().ok())
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as u64);
+
+            if let Some(from_ms) = params.modified_from {
+                if let Some(m) = modified {
+                    if m < from_ms { continue; }
+                } else { continue; }
+            }
+            if let Some(to_ms) = params.modified_to {
+                if let Some(m) = modified {
+                    if m > to_ms { continue; }
+                } else { continue; }
+            }
 
             let matched_name_ranges = find_matched_ranges(&file_name, &query_terms);
 

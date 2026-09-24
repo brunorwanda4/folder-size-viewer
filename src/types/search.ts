@@ -33,6 +33,15 @@ export type SearchStreamEvent =
       tookMs: number;
     };
 
+export type SearchSortOption =
+  | 'score'
+  | 'size_desc'
+  | 'size_asc'
+  | 'date_desc'
+  | 'date_asc'
+  | 'name_asc'
+  | 'name_desc';
+
 export interface SearchParams extends Record<string, unknown> {
   query: string;
   scope: 'computer' | 'folder';
@@ -40,6 +49,10 @@ export interface SearchParams extends Record<string, unknown> {
   mode: 'both' | 'names' | 'contents';
   filterType?: 'all' | 'files' | 'folders';
   filterCategory?: string;
+  extensions?: string[];
+  modifiedFrom?: number;
+  modifiedTo?: number;
+  sortBy?: SearchSortOption;
   limit?: number;
   offset?: number;
 }
@@ -50,6 +63,7 @@ export interface IndexStatus {
   lastUpdated: number | null;
   isIndexing: boolean;
   isPaused: boolean;
+  indexedFolders?: string[];
 }
 
 export interface IndexRoot {
@@ -64,6 +78,7 @@ export interface SearchSettings {
   writerMemoryBudgetMb: number;
   contentExtensions: string[];
   searchBatchSize: number;
+  autoRebuildIndex?: boolean;
 }
 
 export type IndexEvent =

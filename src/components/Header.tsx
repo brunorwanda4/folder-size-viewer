@@ -1,6 +1,5 @@
 import { ThemeToggle } from "./ThemeToggle";
 import { NotificationSettings } from "./NotificationSettings";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Settings } from "lucide-react";
 
@@ -10,36 +9,26 @@ interface HeaderProps {
 
 export function Header({ onOpenSearchSettings }: HeaderProps) {
   return (
-    <header className="flex items-center justify-between pb-4 border-b border-border/40 select-none">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-card border border-border shadow-sm overflow-hidden p-1">
+    <header className="flex items-center justify-between pb-3 border-b border-border/40 select-none">
+      <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-center w-8 h-8 overflow-hidden p-1">
           <img
             src="/logo.png"
-            alt="Folder Size Viewer Logo"
-            className="w-full h-full object-contain rounded-lg"
+            alt="Folder Size Viewer"
+            className="w-full h-full object-contain"
           />
         </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              Folder Size Viewer
-            </h1>
-            <Badge variant="secondary" className="text-[10px] font-medium px-1.5 py-0">
-              v1.0
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Analyze directory storage, inspect recursive sizes, and spot large folders
-          </p>
-        </div>
+        <h1 className="text-lg font-semibold tracking-tight text-foreground">
+          Folder Size Viewer
+        </h1>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         {onOpenSearchSettings && (
           <Button
             variant="ghost"
             size="icon"
             onClick={onOpenSearchSettings}
-            className="h-9 w-9 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
             title="Search & Index Settings"
           >
             <Settings className="h-4 w-4" />

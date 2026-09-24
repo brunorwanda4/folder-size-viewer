@@ -1,6 +1,27 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { invoke, Channel } from '@tauri-apps/api/core';
-import type { SearchHit, SearchStreamEvent } from '@/types/search';
+import type { SearchHit, SearchStreamEvent, SearchSortOption } from '@/types/search';
+
+export function sortHits(hits: SearchHit[], sortOption: SearchSortOption): SearchHit[] {
+  const sorted = [...hits];
+  switch (sortOption) {
+    case 'size_desc':
+      return sorted.sort((a, b) => b.sizeBytes - a.sizeBytes);
+    case 'size_asc':
+      return sorted.sort((a, b) => a.sizeBytes - b.sizeBytes);
+    case 'date_desc':
+      return sorted.sort((a, b) => (b.modified ?? 0) - (a.modified ?? 0));
+    case 'date_asc':
+      return sorted.sort((a, b) => (a.modified ?? 0) - (b.modified ?? 0));
+    case 'name_asc':
+      return sorted.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    case 'name_desc':
+      return sorted.sort((a, b) => b.name.localeCompare(a.name, undefined, { sensitivity: 'base' }));
+    case 'score':
+    default:
+      return sorted;
+  }
+}
 
 export function useSearch(currentFolderPath?: string) {
   const [query, setQuery] = useState('');
@@ -8,6 +29,10 @@ export function useSearch(currentFolderPath?: string) {
   const [mode, setMode] = useState<'both' | 'names' | 'contents'>('both');
   const [filterType, setFilterType] = useState<'all' | 'files' | 'folders'>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [extensions, setExtensions] = useState<string[]>([]);
+  const [modifiedFrom, setModifiedFrom] = useState<number | undefined>(undefined);
+  const [modifiedTo, setModifiedTo] = useState<number | undefined>(undefined);
+  const [sortBy, setSortBy] = useState<SearchSortOption>('score');
 
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [total, setTotal] = useState(0);
@@ -26,7 +51,11 @@ export function useSearch(currentFolderPath?: string) {
       sc: 'computer' | 'folder',
       m: 'both' | 'names' | 'contents',
       ft: 'all' | 'files' | 'folders',
-      fc: string
+      fc: string,
+      exts: string[],
+      modFrom: number | undefined,
+      modTo: number | undefined,
+      sort: SearchSortOption
     ) => {
       const cleanQuery = q.trim();
       if (!cleanQuery) {
@@ -52,7 +81,10 @@ export function useSearch(currentFolderPath?: string) {
         if (latestRequestId.current !== reqId) return;
 
         if (event.type === 'batch') {
-          setHits((prev) => [...prev, ...event.hits]);
+          setHits((prev) => {
+            const next = [...prev, ...event.hits];
+            return sort !== 'score' ? sortHits(next, sort) : next;
+          });
           setTotal(event.total);
           setTookMs(event.tookMs);
         } else if (event.type === 'done') {
@@ -68,10 +100,14 @@ export function useSearch(currentFolderPath?: string) {
         await invoke('stream_search', {
           query: cleanQuery,
           scope: sc,
-          folderPath: sc === 'folder' ? currentFolderPath : undefined,
+          currentPath: sc === 'folder' ? currentFolderPath : undefined,
           mode: m,
           filterType: ft,
-          category: fc !== 'all' ? fc : undefined,
+          filterCategory: fc !== 'all' ? fc : undefined,
+          extensions: exts.length > 0 ? exts : undefined,
+          modifiedFrom: modFrom,
+          modifiedTo: modTo,
+          sortBy: sort,
           onEvent,
         });
       } catch (err: unknown) {
@@ -91,7 +127,17 @@ export function useSearch(currentFolderPath?: string) {
     }
 
     debounceTimer.current = setTimeout(() => {
-      performSearch(query, scope, mode, filterType, filterCategory);
+      performSearch(
+        query,
+        scope,
+        mode,
+        filterType,
+        filterCategory,
+        extensions,
+        modifiedFrom,
+        modifiedTo,
+        sortBy
+      );
     }, 250);
 
     return () => {
@@ -99,7 +145,23 @@ export function useSearch(currentFolderPath?: string) {
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [query, scope, mode, filterType, filterCategory, performSearch]);
+  }, [
+    query,
+    scope,
+    mode,
+    filterType,
+    filterCategory,
+    extensions,
+    modifiedFrom,
+    modifiedTo,
+    sortBy,
+    performSearch,
+  ]);
+
+  const handleSortChange = useCallback((newSort: SearchSortOption) => {
+    setSortBy(newSort);
+    setHits((prev) => sortHits(prev, newSort));
+  }, []);
 
   const loadMore = useCallback(() => {
     // Streaming search automatically searches and streams in the background
@@ -129,6 +191,14 @@ export function useSearch(currentFolderPath?: string) {
     setFilterType,
     filterCategory,
     setFilterCategory,
+    extensions,
+    setExtensions,
+    modifiedFrom,
+    setModifiedFrom,
+    modifiedTo,
+    setModifiedTo,
+    sortBy,
+    setSortBy: handleSortChange,
     hits,
     total,
     tookMs,

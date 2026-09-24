@@ -18,7 +18,18 @@ import {
 	LayoutGrid,
 	Calendar,
 	Trash2,
+	ArrowUpDown,
 } from "lucide-react";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { SearchExtensionFilter } from "./search-extension-filter";
+import { SearchDateFilter } from "./search-date-filter";
+import type { SearchSortOption } from "@/types/search";
 import { useDeletion } from "@/context/DeletionContext";
 import { DeletionDialog } from "@/components/deletion/DeletionDialog";
 import type { IndexStatus, SearchHit } from "@/types/search";
@@ -61,8 +72,14 @@ export function SearchView({
 		setMode,
 		filterType,
 		setFilterType,
-		filterCategory,
-		setFilterCategory,
+		extensions,
+		setExtensions,
+		modifiedFrom,
+		setModifiedFrom,
+		modifiedTo,
+		setModifiedTo,
+		sortBy,
+		setSortBy,
 		hits,
 		total,
 		tookMs,
@@ -472,22 +489,38 @@ export function SearchView({
 						</button>
 					</div>
 
-					{/* Category Dropdown */}
-					<select
-						value={filterCategory}
-						onChange={(e) => setFilterCategory(e.target.value)}
-						className="h-7 px-2 text-xs rounded-md bg-muted/60 border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					>
-						<option value="all">All Categories</option>
-						<option value="Images">Images</option>
-						<option value="Video">Video</option>
-						<option value="Audio">Audio</option>
-						<option value="Documents">Documents</option>
-						<option value="Archives">Archives</option>
-						<option value="Code">Code</option>
-						<option value="Apps & Executables">Apps &amp; Executables</option>
-						<option value="Other">Other</option>
-					</select>
+					{/* Specific Document Types & Extensions Filter (comp-235 based) */}
+					<SearchExtensionFilter
+						extensions={extensions}
+						onChange={setExtensions}
+					/>
+
+					{/* Date Modified Filter (comp-491 & comp-493 based) */}
+					<SearchDateFilter
+						modifiedFrom={modifiedFrom}
+						modifiedTo={modifiedTo}
+						onChange={(from, to) => {
+							setModifiedFrom(from);
+							setModifiedTo(to);
+						}}
+					/>
+
+					{/* Sort Controls (Size, Date, Name, Score) */}
+					<Select value={sortBy} onValueChange={(val) => setSortBy(val as SearchSortOption)}>
+						<SelectTrigger className="h-7 px-2 text-xs bg-muted/60 border w-auto min-w-[130px] gap-1.5">
+							<ArrowUpDown className="h-3 w-3 text-muted-foreground shrink-0" />
+							<SelectValue placeholder="Sort" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="score">Relevance (Score)</SelectItem>
+							<SelectItem value="size_desc">Size: Largest first</SelectItem>
+							<SelectItem value="size_asc">Size: Smallest first</SelectItem>
+							<SelectItem value="date_desc">Date: Newest first</SelectItem>
+							<SelectItem value="date_asc">Date: Oldest first</SelectItem>
+							<SelectItem value="name_asc">Name: A to Z</SelectItem>
+							<SelectItem value="name_desc">Name: Z to A</SelectItem>
+						</SelectContent>
+					</Select>
 				</div>
 
 				{/* Results Stats & Layout Toggle */}

@@ -269,6 +269,10 @@ pub async fn search(
     mode: String,
     filter_type: Option<String>,
     filter_category: Option<String>,
+    extensions: Option<Vec<String>>,
+    modified_from: Option<u64>,
+    modified_to: Option<u64>,
+    sort_by: Option<String>,
     limit: Option<usize>,
     offset: Option<usize>,
     engine: State<'_, Arc<SearchEngine>>,
@@ -297,6 +301,10 @@ pub async fn search(
             mode,
             filter_type,
             filter_category,
+            extensions,
+            modified_from,
+            modified_to,
+            sort_by,
             limit,
             offset,
         };
@@ -343,6 +351,10 @@ pub async fn stream_search(
     mode: String,
     filter_type: Option<String>,
     filter_category: Option<String>,
+    extensions: Option<Vec<String>>,
+    modified_from: Option<u64>,
+    modified_to: Option<u64>,
+    sort_by: Option<String>,
     on_event: Channel<SearchStreamEvent>,
     engine: State<'_, Arc<SearchEngine>>,
 ) -> Result<(), String> {
@@ -390,6 +402,10 @@ pub async fn stream_search(
             mode,
             filter_type,
             filter_category,
+            extensions,
+            modified_from,
+            modified_to,
+            sort_by,
             limit: Some(batch_size),
             offset: Some(0),
         };
@@ -431,17 +447,36 @@ pub async fn stream_search(
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as u64);
 
-            initial_hits.push(SearchHit {
-                name,
-                path: path_str,
-                is_dir,
-                size_bytes,
-                modified,
-                category,
-                snippet: None,
-                matched_name_ranges: Vec::new(),
-            });
-            total_found += 1;
+            let mut include = true;
+            if let Some(ref exts) = params.extensions {
+                let valid: Vec<String> = exts.iter().map(|e| e.trim().trim_start_matches('.').to_lowercase()).filter(|e| !e.is_empty()).collect();
+                if !valid.is_empty() && !is_dir && !valid.contains(&ext.to_lowercase()) {
+                    include = false;
+                }
+            }
+            if let Some(from_ms) = params.modified_from {
+                if let Some(m) = modified {
+                    if m < from_ms { include = false; }
+                } else { include = false; }
+            }
+            if let Some(to_ms) = params.modified_to {
+                if let Some(m) = modified {
+                    if m > to_ms { include = false; }
+                } else { include = false; }
+            }
+            if include {
+                initial_hits.push(SearchHit {
+                    name,
+                    path: path_str,
+                    is_dir,
+                    size_bytes,
+                    modified,
+                    category,
+                    snippet: None,
+                    matched_name_ranges: Vec::new(),
+                });
+                total_found += 1;
+            }
         }
 
         // 2. Tantivy index search
@@ -470,6 +505,10 @@ pub async fn stream_search(
                     }
                 }
             }
+        }
+
+        if let Some(ref sort_order) = params.sort_by {
+            crate::search::query::sort_hits(&mut initial_hits, sort_order);
         }
 
         // Emit first batch immediately if we found hits from direct match or Tantivy
