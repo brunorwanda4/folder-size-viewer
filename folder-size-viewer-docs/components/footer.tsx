@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Folder, Heart } from 'lucide-react';
+import Image from 'next/image';
+import { Heart } from 'lucide-react';
 import { siteConfig } from '@/lib/site-config';
 import { GithubIcon } from '@/components/icons';
 
@@ -10,8 +11,14 @@ export function Footer() {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
           <div className="space-y-3 md:col-span-2">
             <div className="flex items-center gap-2.5 font-semibold text-fd-foreground">
-              <span className="flex size-7 items-center justify-center rounded-lg bg-sky-500/10 text-sky-500 border border-sky-500/20">
-                <Folder className="size-4 fill-sky-500/20 stroke-[2]" />
+              <span className="flex size-7 items-center justify-center rounded-lg bg-fd-card border border-fd-border shadow-xs overflow-hidden p-0.5">
+                <Image
+                  src="/logo.png"
+                  alt={`${siteConfig.name} logo`}
+                  width={24}
+                  height={24}
+                  className="size-full object-contain rounded-md"
+                />
               </span>
               <span className="text-base tracking-tight">{siteConfig.name}</span>
             </div>

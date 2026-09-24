@@ -34,19 +34,19 @@ bun run types:check
 
 ---
 
-## ⚙️ Configuration & Repository Placeholder
+## ⚙️ Configuration & Repository
 
 All GitHub URLs, repository names, and edit links are defined in a **single configuration file**:
 
 📁 [`lib/site-config.ts`](./lib/site-config.ts)
 
 ```ts
-export const GITHUB_USERNAME = '<your-username>';
+export const GITHUB_USERNAME = 'brunorwanda4';
 export const REPO_NAME = 'folder-size-viewer';
 export const REPO_URL = `https://github.com/${GITHUB_USERNAME}/${REPO_NAME}`;
 ```
 
-To update the GitHub repository URL across the entire documentation site, simply replace `<your-username>` in `lib/site-config.ts`. No URLs are hard-coded in markdown or components.
+The repository URL across the entire documentation site is managed in `lib/site-config.ts`. No URLs are hard-coded in markdown or components.
 
 ---
 
@@ -78,7 +78,7 @@ This site is fully optimized for Vercel out of the box with zero additional conf
 ### Target 2: Netlify
 To deploy on Netlify:
 1. Connect your repository on Netlify.
-2. Set the base directory to `folder-size-viewer-docs`.
+2. Set the base directory to `folder-size-viewer-docs`.\
 3. Set the build command to `bun run build` (or `npm run build`).
 4. Set the publish directory to `.next`.
 5. Ensure the `@netlify/plugin-nextjs` plugin is enabled.
@@ -113,25 +113,4 @@ folder-size-viewer-docs/
 │   ├── screenshot.tsx       # Reusable <Screenshot /> component with fallback box
 │   └── footer.tsx           # Custom documentation & site footer
 ├── content/
-│   └── docs/                # MDX content tree organized with meta.json files
-│       ├── getting-started/ # Introduction, Installation, Quick Start
-│       ├── using-the-app/   # Scanning, Views, Charts, Filters, Shortcuts
-│       ├── search/          # Tantivy Overview, Indexing, Syntax, Settings
-│       ├── concepts/        # Size Calculation, Skipped Items, Privacy
-│       ├── help/            # Troubleshooting, FAQ
-│       ├── development/     # Architecture, Local Dev, Installer, Contributing
-│       └── changelog.mdx    # Release history
-├── lib/
-│   ├── site-config.ts       # Centralized site and repository configuration
-│   ├── shared.ts            # Shared Fumadocs metadata utilities
-│   └── source.ts            # Content collections loader
-├── public/
-│   ├── images/              # Screenshot images directory
-│   └── icon.svg             # Application folder icon
-└── package.json
 ```
-
----
-
-## 📄 License
-This documentation and Folder Size Viewer are licensed under the [MIT License](https://opensource.org/licenses/MIT).

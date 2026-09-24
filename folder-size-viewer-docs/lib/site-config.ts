@@ -1,8 +1,7 @@
 /**
  * Single source of truth for repository and site configuration.
- * Replace the GITHUB_USERNAME placeholder below to update links across the entire documentation site.
  */
-export const GITHUB_USERNAME = '<your-username>';
+export const GITHUB_USERNAME = 'brunorwanda4';
 export const REPO_NAME = 'folder-size-viewer';
 export const REPO_URL = `https://github.com/${GITHUB_USERNAME}/${REPO_NAME}`;
 

@@ -2,7 +2,9 @@
 name = "folder-size-viewer"
 version = "0.1.0"
 description = "Folder Size Viewer desktop application"
-authors = ["Folder Size Viewer Developer"]
+authors = ["brunorwanda4"]
+repository = "https://github.com/brunorwanda4/folder-size-viewer"
+homepage = "https://github.com/brunorwanda4/folder-size-viewer"
 edition = "2021"
 
 [lib]

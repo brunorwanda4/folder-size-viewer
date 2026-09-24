@@ -27,10 +27,7 @@ export default function HomePage() {
         </div>
 
         <div className="container mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-500/10 px-3.5 py-1 text-xs font-medium text-sky-600 dark:text-sky-400 mb-6">
-            <Sparkles className="size-3.5" />
-            <span>Built with Tauri v2 & Tantivy for Windows</span>
-          </div>
+
 
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl md:text-7xl text-fd-foreground">
             Folder Size Viewer
@@ -164,9 +161,6 @@ export default function HomePage() {
       <section className="py-16 md:py-24 border-t border-fd-border bg-fd-muted/20">
         <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-sky-600 dark:text-sky-400">
-              Key Capabilities
-            </h2>
             <p className="mt-2 text-3xl font-bold tracking-tight text-fd-foreground sm:text-4xl">
               Everything you need to inspect and clean your storage
             </p>
@@ -261,9 +255,6 @@ export default function HomePage() {
       <section className="py-16 md:py-24 border-t border-fd-border">
         <div className="container mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-14">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-sky-600 dark:text-sky-400">
-              Workflow
-            </h2>
             <p className="mt-2 text-3xl font-bold tracking-tight text-fd-foreground sm:text-4xl">
               How it works in three simple steps
             </p>

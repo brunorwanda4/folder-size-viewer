@@ -30,5 +30,11 @@
     "typescript": "^5.8.2",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.3.5"
+  },
+  "author": "brunorwanda4",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brunorwanda4/folder-size-viewer.git",
+    "directory": "folder-size-viewer-docs"
   }
 }
