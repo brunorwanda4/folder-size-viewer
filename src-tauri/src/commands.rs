@@ -39,23 +39,40 @@ pub fn cancel_scan(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn reveal_in_explorer(path: String) -> Result<(), String> {
-    #[cfg(windows)]
-    {
-        use std::process::Command;
-        let clean_path = path.replace('/', "\\");
-        Command::new("explorer")
-            .args(["/select,", &clean_path])
-            .spawn()
-            .map_err(|e| format!("Failed to launch explorer: {}", e))?;
-        Ok(())
-    }
+pub async fn reveal_in_explorer(path: String, is_dir: Option<bool>) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let is_dir = is_dir.unwrap_or_else(|| std::path::Path::new(&path).is_dir());
 
-    #[cfg(not(windows))]
-    {
-        tauri_plugin_opener::reveal_item_in_dir(&path)
-            .map_err(|e| format!("Failed to reveal item in folder: {}", e))
-    }
+        #[cfg(windows)]
+        {
+            use std::process::Command;
+            let clean_path = path.replace('/', "\\");
+            let mut cmd = Command::new("explorer");
+            if is_dir {
+                // Open into the folder directly
+                cmd.arg(&clean_path);
+            } else {
+                // For files, open parent directory and select the file
+                cmd.args(["/select,", &clean_path]);
+            }
+            cmd.spawn()
+                .map_err(|e| format!("Failed to launch explorer: {}", e))?;
+            Ok(())
+        }
+
+        #[cfg(not(windows))]
+        {
+            if is_dir {
+                tauri_plugin_opener::open_path(&path, None::<&str>)
+                    .map_err(|e| format!("Failed to open folder: {}", e))
+            } else {
+                tauri_plugin_opener::reveal_item_in_dir(&path)
+                    .map_err(|e| format!("Failed to reveal item in folder: {}", e))
+            }
+        }
+    })
+    .await
+    .map_err(|e| format!("Task execution error: {}", e))?
 }
 
 #[tauri::command]

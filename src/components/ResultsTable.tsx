@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Folder,
+  FolderOpen,
   File,
   ArrowUpDown,
   ArrowUp,
@@ -152,12 +153,12 @@ export function ResultsTable({
     }
   };
 
-  const handleReveal = async (e: React.MouseEvent, path: string) => {
+  const handleReveal = async (e: React.MouseEvent, path: string, isDir?: boolean) => {
     e.stopPropagation();
     try {
-      await invoke("reveal_in_explorer", { path });
+      await invoke("reveal_in_explorer", { path, isDir });
     } catch (err) {
-      toast.error("Failed to open Explorer", {
+      toast.error(isDir ? "Failed to open folder" : "Failed to open Explorer", {
         description: String(err),
       });
     }
@@ -496,14 +497,28 @@ export function ResultsTable({
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 rounded-md hover:bg-muted text-muted-foreground"
-                                onClick={(e) => handleReveal(e, entry.path)}
-                                aria-label="Show in Explorer"
+                                onClick={(e) =>
+                                  handleReveal(e, entry.path, entry.isDir)
+                                }
+                                aria-label={
+                                  entry.isDir
+                                    ? "Open folder in Explorer"
+                                    : "Reveal in Explorer"
+                                }
                               >
-                                <ExternalLink className="w-3.5 h-3.5" />
+                                {entry.isDir ? (
+                                  <FolderOpen className="w-3.5 h-3.5" />
+                                ) : (
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                )}
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p className="text-xs">Reveal in Explorer</p>
+                              <p className="text-xs">
+                                {entry.isDir
+                                  ? "Open folder in Explorer"
+                                  : "Reveal in Explorer"}
+                              </p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
