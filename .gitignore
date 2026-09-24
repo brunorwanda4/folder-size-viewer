@@ -16,6 +16,7 @@ target/
 **/target/
 **/*.rs.bk
 *.pdb
+.cargo/
 
 # Tauri mobile generated folders
 src-tauri/gen/android/

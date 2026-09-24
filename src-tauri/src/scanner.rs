@@ -388,6 +388,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Recursively scans entire LOCALAPPDATA directory; run with -- --ignored"]
     fn test_scan_real_directory_no_infinite_loop() {
         // Test scanning a directory known to have junctions or locked files, like %LOCALAPPDATA%
         if let Ok(appdata) = std::env::var("LOCALAPPDATA") {
