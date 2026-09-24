@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install Folder Size Viewer on Windows via prebuilt installer or build from source.
+description: Install Folder Size Viewer on Windows via prebuilt binary or build from source.
 ---
 
 Folder Size Viewer is distributed as a lightweight native Windows executable with no runtime dependencies.
@@ -15,25 +15,25 @@ Folder Size Viewer is distributed as a lightweight native Windows executable wit
 
 ## Installation Methods
 
-<Tabs items={['Prebuilt Installer', 'Build from Source']}>
-  <Tab value="Prebuilt Installer">
-    The simplest way to install Folder Size Viewer is using the official release package.
+<Tabs items={['Prebuilt Executable', 'Build from Source']}>
+  <Tab value="Prebuilt Executable">
+    The simplest way to run Folder Size Viewer is downloading the prebuilt standalone Windows binary.
 
     <Steps>
       <Step>
         ### Download the Release
-        Visit the repository's Releases page on GitHub and download the latest installer (`.msi` or `setup.exe`).
+        Visit the repository's [Releases](https://github.com/brunorwanda4/folder-size-viewer/releases) page on GitHub and download `folder-size-viewer.exe` from the latest release.
       </Step>
       <Step>
-        ### Run the Setup Wizard
-        Double-click the installer. Follow the on-screen prompts to select your destination directory.
+        ### Launch the Application
+        Double-click `folder-size-viewer.exe`. It is fully portable and requires no installation.
         <Callout type="info" title="Windows SmartScreen">
-          If Windows SmartScreen displays an *Unrecognized app* alert, click **More info** and then select **Run anyway**. This appears because the installer is signed with a community certificate.
+          If Windows SmartScreen displays an *Unrecognized app* alert on first launch, click **More info** and then select **Run anyway**. This appears because the binary is built with a community certificate.
         </Callout>
       </Step>
       <Step>
-        ### Launch Folder Size Viewer
-        Once installation finishes, launch **Folder Size Viewer** from the Start Menu or your desktop shortcut.
+        ### Ready to Use
+        Folder Size Viewer will open immediately. You can pin it to your Windows Taskbar or Start Menu for quick access.
       </Step>
     </Steps>
   </Tab>
@@ -70,9 +70,9 @@ Folder Size Viewer is distributed as a lightweight native Windows executable wit
         ```bash
         bun run tauri build
         ```
-        The compiled MSI and standalone executable will be located in:
+        The compiled executable will be located in:
         ```
-        src-tauri/target/release/bundle/msi/
+        target/release/folder-size-viewer.exe
         ```
       </Step>
     </Steps>
@@ -82,5 +82,5 @@ Folder Size Viewer is distributed as a lightweight native Windows executable wit
 ## Updating the App
 
 When a new version is released:
-1. Download the latest installer from the Releases page.
-2. Run the installer; it will automatically upgrade your existing installation in-place while preserving your local search index and configuration settings stored in `%LOCALAPPDATA%\folder-size-viewer`.
+1. Download the latest `folder-size-viewer.exe` from the Releases page.
+2. Replace your previous executable. Your local search index and configuration settings stored in `%LOCALAPPDATA%\folder-size-viewer` are automatically preserved.
