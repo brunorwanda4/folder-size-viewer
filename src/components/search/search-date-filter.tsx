@@ -25,6 +25,7 @@ export function SearchDateFilter({
   const [activeTab, setActiveTab] = React.useState<"range" | "multiple">("range");
 
   const today = React.useMemo(() => new Date(), []);
+  const startMonth = React.useMemo(() => new Date(1995, 0), []);
 
   // State for Range Mode (comp-491)
   const [range, setRange] = React.useState<DateRange | undefined>(() => {
@@ -266,7 +267,9 @@ export function SearchDateFilter({
                 onSelect={handleRangeSelect}
                 numberOfMonths={1}
                 disabled={{ after: today }}
+                startMonth={startMonth}
                 endMonth={today}
+                captionLayout="dropdown"
                 className="p-1"
               />
             ) : (
@@ -276,7 +279,9 @@ export function SearchDateFilter({
                 onSelect={handleMultipleSelect}
                 numberOfMonths={1}
                 disabled={{ after: today }}
+                startMonth={startMonth}
                 endMonth={today}
+                captionLayout="dropdown"
                 className="p-1"
               />
             )}
