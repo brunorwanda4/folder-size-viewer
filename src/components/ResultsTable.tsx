@@ -220,7 +220,7 @@ export function ResultsTable({
       : 0;
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 border border-border/70 rounded-xl bg-card/60 backdrop-blur-sm shadow-sm overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-[480px] lg:min-h-[520px] border border-border/70 rounded-xl bg-card/60 backdrop-blur-sm shadow-sm overflow-hidden">
       {/* Controls Bar: Search, Type Filters, Sort Control, View Toggle */}
       <div className="p-3 border-b border-border/60 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-muted/20">
         {/* Left: Search input */}
