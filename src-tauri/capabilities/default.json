@@ -9,6 +9,7 @@
     "dialog:allow-open",
     "opener:default",
     "opener:allow-reveal-item-in-dir",
-    "opener:allow-open-path"
+    "opener:allow-open-path",
+    "notification:default"
   ]
 }

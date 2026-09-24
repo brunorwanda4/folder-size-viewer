@@ -1,4 +1,5 @@
 import { ThemeToggle } from "./ThemeToggle";
+import { NotificationSettings } from "./NotificationSettings";
 import { Badge } from "@/components/ui/badge";
 
 export function Header() {
@@ -27,6 +28,7 @@ export function Header() {
         </div>
       </div>
       <div className="flex items-center gap-2">
+        <NotificationSettings />
         <ThemeToggle />
       </div>
     </header>

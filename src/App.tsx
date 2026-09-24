@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ThemeProvider } from "next-themes";
 import { AlertCircle } from "lucide-react";
 import { Header } from "@/components/Header";
@@ -9,6 +9,11 @@ import { ResultsTable } from "@/components/ResultsTable";
 import { Toaster } from "@/components/ui/sonner";
 import { useScan } from "@/hooks/useScan";
 import { toast } from "sonner";
+import {
+  notifyScanComplete,
+  notifyScanError,
+  ensureNotificationPermission,
+} from "@/lib/notifications";
 
 export default function App() {
   const {
@@ -23,18 +28,35 @@ export default function App() {
     removeEntry,
   } = useScan();
 
-  // Toast on scan completion or error
+  // Request notification permission on startup
   useEffect(() => {
-    if (state === "error" && error) {
-      toast.error("Scan Failed", {
-        description: error,
-      });
-    } else if (state === "done" && summary) {
-      toast.success("Scan Completed", {
-        description: `Found ${entries.length} items (${summary.skippedCount} skipped)`,
-      });
+    ensureNotificationPermission().catch(() => {});
+  }, []);
+
+  // Notifications on scan completion or error
+  const prevScanStateRef = useRef(state);
+  useEffect(() => {
+    if (prevScanStateRef.current === "scanning") {
+      if (state === "error" && error) {
+        toast.error("Scan Failed", {
+          description: error,
+        });
+        notifyScanError(currentPath, error).catch(() => {});
+      } else if (state === "done" && summary) {
+        toast.success("Scan Completed", {
+          description: `Found ${entries.length} items (${summary.skippedCount} skipped)`,
+        });
+        notifyScanComplete({
+          path: currentPath,
+          totalSize: summary.totalSize,
+          itemsCount: entries.length,
+          skippedCount: summary.skippedCount,
+          elapsedMs: summary.elapsedMs,
+        }).catch(() => {});
+      }
     }
-  }, [state, error, summary, entries.length]);
+    prevScanStateRef.current = state;
+  }, [state, error, summary, entries.length, currentPath]);
 
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
