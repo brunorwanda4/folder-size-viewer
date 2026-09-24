@@ -1,0 +1,85 @@
+---
+title: Introduction
+description: Overview of Folder Size Viewer, its core philosophy, and system capabilities.
+---
+
+**Folder Size Viewer** is a fast, lightweight, Windows-first desktop application designed to help you visualize disk usage and find any file or text content across your system in milliseconds.
+
+Built with **Tauri v2**, **React**, **TypeScript**, and **shadcn/ui**, the app combines the performance and safety of a native Rust backend with a clean, responsive modern interface.
+
+<Callout type="info" title="100% Offline & Safe">
+  Folder Size Viewer is strictly read-only and local-first. It never deletes or alters your files, makes zero network requests, and collects zero telemetry.
+</Callout>
+
+## Why Folder Size Viewer?
+
+As disks grow into terabytes and modern dev environments generate hundreds of thousands of files in `node_modules` or build caches, finding what is consuming storage often becomes sluggish:
+
+- **Slow directory scans**: Traditional tree analyzers can freeze your system or take minutes before displaying any actionable data.
+- **Disconnected file search**: Disk space tools rarely offer full-text search, forcing you to switch between multiple utilities.
+- **Accidental modification risks**: Many cleanup utilities tempt dangerous one-click deletions without granular inspection.
+
+Folder Size Viewer solves this by providing **live streaming results**, dual **Table and Cards views**, **visual storage breakdown charts**, and an embedded **Tantivy full-text search engine** in a single desktop binary.
+
+## Key Features
+
+<Cards>
+  <Card
+    title="Live Streaming Disk Scans"
+    description="Scan any directory with real-time progress updates, visual percent bars, file counts, and last modified dates."
+    href="/docs/using-the-app/scanning-a-folder"
+  />
+  <Card
+    title="Table & Cards Views"
+    description="Toggle between dense tabular data and visual cards with Material Icon Theme file icons."
+    href="/docs/using-the-app/views"
+  />
+  <Card
+    title="Storage Breakdown Charts"
+    description="Inspect top folders by size with 'Others' grouping and view disk distribution across 10 file categories."
+    href="/docs/using-the-app/charts"
+  />
+  <Card
+    title="Tantivy Instant Search"
+    description="Sub-millisecond full-text queries across file names and text contents with keyboard shortcuts."
+    href="/docs/search/overview"
+  />
+  <Card
+    title="Safe & Read-Only"
+    description="Safely ignores symlinks, NTFS junctions, and permission-denied files without crash loops or data modification."
+    href="/docs/concepts/what-is-skipped"
+  />
+  <Card
+    title="Local & Private"
+    description="No analytics, no cloud sync, and no tracking. Everything stays strictly inside your local AppData directory."
+    href="/docs/concepts/privacy-and-data-storage"
+  />
+</Cards>
+
+## Technical Architecture
+
+Under the hood, Folder Size Viewer is built on two primary layers:
+
+1. **Rust Core (Tauri v2)**:
+   - High-throughput asynchronous directory walker using multithreaded workers.
+   - Non-blocking event streaming to emit partial scan updates to the UI every few milliseconds.
+   - Embedded Tantivy search engine indexing file names and text file contents into local inverted indexes.
+2. **Frontend UI (React & Tailwind CSS)**:
+   - Built on shadcn/ui design patterns for crisp borders, neutral palettes, and dark mode support.
+   - Virtualized lists (`@tanstack/react-virtual`) capable of smoothly rendering hundreds of thousands of scanned rows at 60 FPS.
+   - Interactive charts powered by Recharts.
+
+## Next Steps
+
+<Cards>
+  <Card
+    title="Installation Guide"
+    description="Download prebuilt installers for Windows or compile from source."
+    href="/docs/getting-started/installation"
+  />
+  <Card
+    title="5-Step Quick Start"
+    description="Perform your first folder scan and discover large directories in minutes."
+    href="/docs/getting-started/quick-start"
+  />
+</Cards>

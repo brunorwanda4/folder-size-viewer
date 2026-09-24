@@ -1,3 +1,4 @@
+const nameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' as const });
 import { useState, useMemo } from "react";
 import {
   Search,
@@ -132,10 +133,7 @@ export function ResultsTable({
         if (sortField === "size") {
           comparison = a.sizeBytes - b.sizeBytes;
         } else if (sortField === "name") {
-          comparison = a.name.localeCompare(b.name, undefined, {
-            numeric: true,
-            sensitivity: "base",
-          });
+          comparison = nameCollator.compare(a.name, b.name);
         } else if (sortField === "modified") {
           comparison = (a.modified ?? 0) - (b.modified ?? 0);
         }

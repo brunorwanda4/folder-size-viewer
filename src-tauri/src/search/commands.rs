@@ -57,13 +57,18 @@ pub fn save_search_settings(
 }
 
 #[tauri::command]
-pub fn get_index_status(engine: State<'_, Arc<SearchEngine>>) -> Result<IndexStatus, String> {
+pub async fn get_index_status(engine: State<'_, Arc<SearchEngine>>) -> Result<IndexStatus, String> {
     let is_indexing = engine.is_indexing.load(Ordering::SeqCst);
     let is_paused = engine.is_paused.load(Ordering::SeqCst);
-    let manager_guard = engine.manager.lock().unwrap();
+    let manager = {
+        let guard = engine.manager.lock().unwrap();
+        guard.clone()
+    };
 
-    if let Some(ref manager) = *manager_guard {
-        Ok(manager.get_status(is_indexing, is_paused))
+    if let Some(manager) = manager {
+        tokio::task::spawn_blocking(move || Ok(manager.get_status(is_indexing, is_paused)))
+            .await
+            .map_err(|e| format!("Task execution error: {}", e))?
     } else {
         Ok(IndexStatus {
             doc_count: 0,
@@ -97,20 +102,24 @@ pub async fn start_indexing(
             s.clone()
         };
 
-        let result = {
+        // Clone IndexManager handle and release the lock immediately so other operations
+        // (status queries, searches) are never blocked during indexing!
+        let manager_opt = {
             let manager_guard = engine_clone.manager.lock().unwrap();
-            if let Some(ref manager) = *manager_guard {
-                run_indexing(
-                    manager,
-                    &settings,
-                    rebuild_flag,
-                    &on_event,
-                    Arc::clone(&engine_clone.cancel_token),
-                    Arc::clone(&engine_clone.is_paused),
-                )
-            } else {
-                Err("Index manager is not initialized.".to_string())
-            }
+            manager_guard.clone()
+        };
+
+        let result = if let Some(manager) = manager_opt {
+            run_indexing(
+                &manager,
+                &settings,
+                rebuild_flag,
+                &on_event,
+                Arc::clone(&engine_clone.cancel_token),
+                Arc::clone(&engine_clone.is_paused),
+            )
+        } else {
+            Err("Index manager is not initialized.".to_string())
         };
 
         if let Err(e) = result {
@@ -200,31 +209,38 @@ pub async fn search(
         (s.content_extensions.clone(), s.max_content_size_mb)
     };
 
-    let manager_guard = engine.manager.lock().unwrap();
-    let manager = manager_guard
-        .as_ref()
-        .ok_or_else(|| "Index is not available.".to_string())?;
-
-    let searcher = manager.reader.searcher();
-    let params = SearchParams {
-        query,
-        scope,
-        current_path,
-        mode,
-        filter_type,
-        filter_category,
-        limit,
-        offset,
+    let manager = {
+        let manager_guard = engine.manager.lock().unwrap();
+        manager_guard
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| "Index is not available.".to_string())?
     };
 
-    execute_search(
-        &manager.index,
-        &searcher,
-        &manager.fields,
-        params,
-        &content_extensions,
-        max_content_size_mb,
-    )
+    tokio::task::spawn_blocking(move || {
+        let searcher = manager.reader.searcher();
+        let params = SearchParams {
+            query,
+            scope,
+            current_path,
+            mode,
+            filter_type,
+            filter_category,
+            limit,
+            offset,
+        };
+
+        execute_search(
+            &manager.index,
+            &searcher,
+            &manager.fields,
+            params,
+            &content_extensions,
+            max_content_size_mb,
+        )
+    })
+    .await
+    .map_err(|e| format!("Search task error: {}", e))?
 }
 
 #[tauri::command]

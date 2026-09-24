@@ -59,6 +59,7 @@ pub enum IndexEvent {
     },
 }
 
+#[derive(Clone)]
 pub struct IndexManager {
     pub index_dir: PathBuf,
     pub index: Index,
@@ -300,6 +301,7 @@ pub fn run_indexing(
             // Handle cancellation
             if cancel_token.load(Ordering::SeqCst) {
                 let _ = on_event.send(IndexEvent::Cancelled);
+                let _ = writer.commit();
                 return Ok(files_indexed);
             }
 
@@ -311,37 +313,19 @@ pub fn run_indexing(
                 }
             };
 
-            files_seen += 1;
-
             let path = entry.path();
             let path_str = path.to_string_lossy().to_string();
 
-            // Skip reparse points/symlinks
-            if entry.file_type.is_symlink() {
-                skipped += 1;
+            // Check exclusions
+            let path_lower = path_str.to_lowercase();
+            if exclusions_lower.iter().any(|ex| path_lower.contains(ex)) {
                 continue;
             }
 
-            // Exclusions check
-            let name = match path.file_name().and_then(|n| n.to_str()) {
-                Some(n) => n,
-                None => {
-                    skipped += 1;
-                    continue;
-                }
-            };
+            let file_type = entry.file_type;
+            let is_dir = file_type.is_dir();
 
-            let name_lower = name.to_lowercase();
-            if exclusions_lower
-                .iter()
-                .any(|ex| name_lower == *ex || path_str.to_lowercase().contains(ex))
-            {
-                skipped += 1;
-                continue;
-            }
-
-            let is_dir = entry.file_type.is_dir();
-            let metadata = match fs::metadata(&path) {
+            let metadata = match entry.metadata() {
                 Ok(m) => m,
                 Err(_) => {
                     skipped += 1;
@@ -357,6 +341,12 @@ pub fn run_indexing(
                 .map(|d| d.as_millis() as u64)
                 .unwrap_or(0);
 
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| path_str.clone());
+
+            files_seen += 1;
             seen_paths.insert(path_str.clone());
 
             // Incremental check: has file changed?
@@ -372,8 +362,8 @@ pub fn run_indexing(
 
             // Build TantivyDocument
             let mut doc = TantivyDocument::default();
-            doc.add_text(manager.fields.name, name);
-            doc.add_text(manager.fields.name_ngram, name);
+            doc.add_text(manager.fields.name, &name);
+            doc.add_text(manager.fields.name_ngram, &name);
             doc.add_text(manager.fields.path, &path_str);
             doc.add_bool(manager.fields.is_dir, is_dir);
             doc.add_u64(manager.fields.size, size);

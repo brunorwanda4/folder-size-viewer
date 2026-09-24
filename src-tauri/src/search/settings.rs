@@ -23,33 +23,10 @@ impl Default for SearchSettings {
     fn default() -> Self {
         let mut roots = Vec::new();
 
-        // 1. Discover fixed drives on Windows (e.g. C:\, D:\) for names-only indexing
-        #[cfg(windows)]
-        {
-            for letter in b'A'..=b'Z' {
-                let drive_str = format!("{}:\\", letter as char);
-                let p = Path::new(&drive_str);
-                if p.is_dir() {
-                    roots.push(IndexRoot {
-                        path: drive_str,
-                        index_content: false,
-                    });
-                }
-            }
-        }
-
-        #[cfg(not(windows))]
-        {
-            roots.push(IndexRoot {
-                path: "/".to_string(),
-                index_content: false,
-            });
-        }
-
-        // 2. Add user profile / home directory for names + contents indexing
+        // Default root: user profile / home directory (Documents, Downloads, Desktop, etc.)
+        // Fast, non-blocking discovery with no drive-letter polling.
         if let Some(home) = dirs::home_dir() {
             let home_str = home.to_string_lossy().to_string();
-            // Put home folder at the top of content indexing roots
             roots.push(IndexRoot {
                 path: home_str,
                 index_content: true,
@@ -66,6 +43,7 @@ impl Default for SearchSettings {
             "pagefile.sys".to_string(),
             "hiberfil.sys".to_string(),
             "swapfile.sys".to_string(),
+            "AppData\\Local\\Temp".to_string(),
         ];
 
         let content_extensions = vec![

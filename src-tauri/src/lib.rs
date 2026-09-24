@@ -5,9 +5,7 @@ mod types;
 
 use commands::AppState;
 use search::commands::SearchEngine;
-use search::indexer::SCHEMA_META_FILENAME;
 use std::sync::Arc;
-use std::time::Duration;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -25,56 +23,7 @@ pub fn run() {
                 .expect("Failed to get app data directory");
 
             let engine = Arc::new(SearchEngine::new(app_data_dir));
-            app.manage(engine.clone());
-
-            // Auto-run an incremental update in the background if an index already exists
-            let meta_file = engine.app_data_dir.join("index").join(SCHEMA_META_FILENAME);
-            if meta_file.is_file() {
-                let engine_clone = Arc::clone(&engine);
-                std::thread::Builder::new()
-                    .name("search-auto-indexer".into())
-                    .spawn(move || {
-                        // Small delay to let the app initialize and display the UI first
-                        std::thread::sleep(Duration::from_millis(1500));
-
-                        if engine_clone
-                            .is_indexing
-                            .swap(true, std::sync::atomic::Ordering::SeqCst)
-                        {
-                            return;
-                        }
-                        engine_clone
-                            .is_paused
-                            .store(false, std::sync::atomic::Ordering::SeqCst);
-                        engine_clone
-                            .cancel_token
-                            .store(false, std::sync::atomic::Ordering::SeqCst);
-
-                        let settings = {
-                            let s = engine_clone.settings.lock().unwrap();
-                            s.clone()
-                        };
-                        let manager_guard = engine_clone.manager.lock().unwrap();
-                        if let Some(ref manager) = *manager_guard {
-                            let dummy_channel = tauri::ipc::Channel::new(|_| Ok(()));
-                            let _ = search::indexer::run_indexing(
-                                manager,
-                                &settings,
-                                false, // incremental update
-                                &dummy_channel,
-                                Arc::clone(&engine_clone.cancel_token),
-                                Arc::clone(&engine_clone.is_paused),
-                            );
-                        }
-                        engine_clone
-                            .is_indexing
-                            .store(false, std::sync::atomic::Ordering::SeqCst);
-                        engine_clone
-                            .is_paused
-                            .store(false, std::sync::atomic::Ordering::SeqCst);
-                    })
-                    .ok();
-            }
+            app.manage(engine);
 
             Ok(())
         })

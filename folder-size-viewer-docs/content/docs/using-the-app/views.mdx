@@ -1,0 +1,51 @@
+---
+title: Table and Cards Views
+description: Switch between high-density data tables and visual cards with Material Icon Theme badges.
+---
+
+Folder Size Viewer offers two distinct display modes designed for different workflows: the **Table View** for dense, detailed data analysis, and the **Cards View** for visual exploration.
+
+You can switch between them at any time using the view toggle buttons in the toolbar or via keyboard shortcuts (<kbd>Ctrl+1</kbd> for Table, <kbd>Ctrl+2</kbd> for Cards).
+
+<Screenshot
+  src="/images/cards-view.png"
+  alt="Cards View"
+  caption="Cards view displaying directory metrics, progress indicators, and Material Icon Theme badges"
+/>
+
+## Table View
+
+The Table View is optimized for maximum information density. It is ideal when you need to audit large directories with hundreds of files and sort through multiple columns.
+
+### Columns Displayed
+
+- **Icon & Name**: Material Icon Theme style icons reflecting the exact file extension (e.g., Python, Rust, TypeScript, PDF, Archive) or directory state.
+- **Size**: Formatted logical size (Bytes, KB, MB, GB, TB) formatted with clean binary units.
+- **% of Total**: An inline percentage bar that visually demonstrates how much space the item occupies relative to the scanned folder.
+- **Items / Files**: The total count of contained files and subfolders.
+- **Last Modified**: Local timestamp indicating when the file or folder was last written to.
+
+### Virtualized Scrolling
+
+The table uses virtualized list rendering via `@tanstack/react-virtual`. Even when a scanned directory contains tens of thousands of items, only the rows currently visible on your display are rendered in DOM memory. This ensures smooth 60 FPS scrolling with zero lag or stuttering.
+
+---
+
+## Cards View
+
+The Cards View transforms your directory listing into a clean, modern grid of responsive cards.
+
+- **Visual Emphasis**: Larger icons and high-contrast metric badges make it easy to spot massive directories quickly on high-resolution displays.
+- **Quick Action Triggers**: Each card includes quick buttons to navigate inside, open the folder in Windows File Explorer, or copy its path.
+- **Responsive Layout**: The grid automatically adjusts between 1 to 4 columns depending on your window size.
+
+---
+
+## Drill Down with Breadcrumbs
+
+Navigating complex directory trees is effortless:
+
+1. **Drill Down**: Double-click any folder row in the table or click anywhere on its card in Cards view to enter that directory.
+2. **Breadcrumb Trail**: The breadcrumb bar at the top of the window updates dynamically to reflect the current path (for example: `This PC > C: > Users > Developer > Projects > node_modules`).
+3. **Navigate Up**: Click any parent folder segment in the breadcrumb trail to immediately navigate back up to that directory level.
+4. **Keyboard Navigation**: Press <kbd>Backspace</kbd> or <kbd>Alt+Up</kbd> to jump up to the parent directory.

@@ -1,0 +1,40 @@
+---
+title: Changelog
+description: Release history and version notes for Folder Size Viewer.
+---
+
+## v1.0.0 (Latest Release)
+
+*Initial stable release of Folder Size Viewer on Tauri v2.*
+
+### Added
+- **Asynchronous Scanner**: Multithreaded directory walker with real-time IPC batch streaming and cancel capabilities.
+- **Path Auto-Resolution**: Support for Windows environment variables (`%LOCALAPPDATA%`, `%USERPROFILE%`, `%TEMP%`) and home tilde (`~`).
+- **Dual Display Modes**: High-density Table View and visual responsive Cards View with Material Icon Theme badges.
+- **Breadcrumb Navigation**: Deep drill-down into nested directories with one-click parent traversal.
+- **Visual Storage Charts**: Top folders bar chart with automatic "Others" aggregation and storage breakdown across 10 file types.
+- **Tantivy Full-Text Search**: Sub-millisecond instant search across file names and plain-text file contents with scope selection.
+- **Search Index Manager**: Configurable indexing locations, custom exclusion lists, and 2 MB content threshold settings.
+- **Read-Only Safety**: Automatic exclusion of symlinks and NTFS junctions to prevent infinite recursion and double counting.
+
+---
+
+## v0.9.0 (Beta)
+
+### Added
+- Full-text content search integration using Tantivy.
+- Added file type category breakdown chart using Recharts.
+- Added keyboard shortcuts for rapid view switching and path copying.
+
+### Fixed
+- Fixed UI stuttering during deep directory scans by introducing `@tanstack/react-virtual`.
+- Improved Windows SmartScreen compatibility.
+
+---
+
+## v0.5.0 (Alpha)
+
+### Added
+- Proof-of-concept Tauri v2 directory scanner.
+- Initial Table View implementation with size percent bars.
+- Basic Windows folder picker integration.

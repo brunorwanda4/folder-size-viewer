@@ -38,8 +38,38 @@ export function useScan() {
 
   // Active scan ID to prevent race conditions when rapid scanning occurs
   const currentScanIdRef = useRef<number>(0);
+  const pendingEntriesRef = useRef<FolderChildEntry[]>([]);
+  const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushPendingEntries = useCallback(() => {
+    if (pendingEntriesRef.current.length === 0) return;
+    const batch = pendingEntriesRef.current;
+    pendingEntriesRef.current = [];
+
+    setEntries((prev) => [...prev, ...batch]);
+    setSummary((prevSummary) => {
+      let addedSize = 0;
+      let nextCategories = { ...(prevSummary?.categories || {}) };
+      for (const item of batch) {
+        addedSize += item.sizeBytes;
+        nextCategories = mergeCategories(nextCategories, item.categories);
+      }
+      return {
+        totalSize: (prevSummary?.totalSize || 0) + addedSize,
+        totalChildren: prevSummary?.totalChildren || 0,
+        elapsedMs: prevSummary?.elapsedMs || 0,
+        skippedCount: prevSummary?.skippedCount || 0,
+        categories: nextCategories,
+      };
+    });
+  }, []);
 
   const cancel = useCallback(async () => {
+    if (batchTimerRef.current) {
+      clearTimeout(batchTimerRef.current);
+      batchTimerRef.current = null;
+    }
+    pendingEntriesRef.current = [];
     try {
       await invoke("cancel_scan");
     } catch (err) {
@@ -68,6 +98,12 @@ export function useScan() {
         setState("error");
         return;
       }
+
+      if (batchTimerRef.current) {
+        clearTimeout(batchTimerRef.current);
+        batchTimerRef.current = null;
+      }
+      pendingEntriesRef.current = [];
 
       // Increment scan ID to discard events from any in-flight previous scan
       const scanId = ++currentScanIdRef.current;
@@ -108,26 +144,23 @@ export function useScan() {
             break;
 
           case "childDone": {
-            const entry = event.entry;
-            setEntries((prev) => [...prev, entry]);
-            setSummary((prevSummary) => {
-              const runningTotal = (prevSummary?.totalSize || 0) + entry.sizeBytes;
-              const nextCategories = mergeCategories(
-                prevSummary?.categories || {},
-                entry.categories
-              );
-              return {
-                totalSize: runningTotal,
-                totalChildren: prevSummary?.totalChildren || 0,
-                elapsedMs: prevSummary?.elapsedMs || 0,
-                skippedCount: prevSummary?.skippedCount || 0,
-                categories: nextCategories,
-              };
-            });
+            pendingEntriesRef.current.push(event.entry);
+            // Throttle UI updates to every 60ms to prevent browser lockup on folders with many items
+            if (!batchTimerRef.current) {
+              batchTimerRef.current = setTimeout(() => {
+                batchTimerRef.current = null;
+                flushPendingEntries();
+              }, 60);
+            }
             break;
           }
 
           case "finished":
+            if (batchTimerRef.current) {
+              clearTimeout(batchTimerRef.current);
+              batchTimerRef.current = null;
+            }
+            flushPendingEntries();
             setSummary((prevSummary) => ({
               totalSize: event.totalSize,
               totalChildren: prevSummary?.totalChildren || 0,
@@ -139,10 +172,20 @@ export function useScan() {
             break;
 
           case "cancelled":
+            if (batchTimerRef.current) {
+              clearTimeout(batchTimerRef.current);
+              batchTimerRef.current = null;
+            }
+            pendingEntriesRef.current = [];
             setState("idle");
             break;
 
           case "error":
+            if (batchTimerRef.current) {
+              clearTimeout(batchTimerRef.current);
+              batchTimerRef.current = null;
+            }
+            pendingEntriesRef.current = [];
             setError(event.message);
             setState("error");
             break;
@@ -156,6 +199,11 @@ export function useScan() {
         });
 
         if (scanId === currentScanIdRef.current) {
+          if (batchTimerRef.current) {
+            clearTimeout(batchTimerRef.current);
+            batchTimerRef.current = null;
+          }
+          pendingEntriesRef.current = [];
           setEntries(result.entries);
           setSummary({
             totalSize: result.totalSize,
@@ -184,13 +232,17 @@ export function useScan() {
         }
       }
     },
-    []
+    [flushPendingEntries]
   );
 
   // Clean up ongoing scan when unmounting
   useEffect(() => {
     return () => {
       currentScanIdRef.current++;
+      if (batchTimerRef.current) {
+        clearTimeout(batchTimerRef.current);
+        batchTimerRef.current = null;
+      }
       invoke("cancel_scan").catch(() => {});
     };
   }, []);

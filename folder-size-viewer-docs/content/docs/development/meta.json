@@ -1,0 +1,10 @@
+{
+  "title": "Development",
+  "pages": [
+    "project-structure",
+    "running-locally",
+    "building-the-installer",
+    "architecture",
+    "contributing"
+  ]
+}

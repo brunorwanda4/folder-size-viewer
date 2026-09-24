@@ -1,0 +1,40 @@
+---
+title: Searching Names and Contents
+description: Details on plain-text content indexing, supported formats, binary exclusions, and size limits.
+---
+
+Folder Size Viewer allows you to search not just for file names, but for the actual text written inside your files.
+
+## Supported Content File Formats
+
+Content indexing extracts plain-text UTF-8 and UTF-16 content from a wide range of human-readable formats:
+
+- **Source Code**: `.ts`, `.tsx`, `.js`, `.jsx`, `.rs`, `.py`, `.go`, `.c`, `.cpp`, `.h`, `.cs`, `.java`, `.php`, `.rb`, `.swift`
+- **Data & Config Formats**: `.json`, `.yaml`, `.yml`, `.toml`, `.xml`, `.csv`, `.tsv`, `.ini`, `.env`
+- **Markup & Documentation**: `.md`, `.markdown`, `.html`, `.css`, `.scss`, `.rst`, `.txt`
+- **Shell & Scripts**: `.bat`, `.cmd`, `.ps1`, `.sh`, `.bash`, `.zsh`
+
+---
+
+## Binary File Exclusions
+
+To maintain high indexing throughput and protect system memory, binary files are automatically excluded from full-text content indexing:
+
+- Executables and libraries (`.exe`, `.dll`, `.sys`, `.so`, `.bin`)
+- Media files (`.mp4`, `.mp3`, `.png`, `.jpg`, `.wav`, `.mkv`)
+- Compressed archives (`.zip`, `.tar`, `.7z`, `.rar`, `.gz`)
+- Large database blobs (`.mdf`, `.ibd`)
+
+*Note: While their contents are not parsed, their names and paths are still fully indexed for name searches.*
+
+---
+
+## Maximum Content File Size (Default: 2 MB)
+
+By default, files larger than **2 MB** are skipped for content indexing.
+
+Why a 2 MB limit?
+- The vast majority of code files and markdown documents are smaller than 200 KB.
+- Massive minified JavaScript bundles, database dumps, or raw machine logs (which can reach hundreds of megabytes) would monopolize memory and degrade search responsiveness.
+
+You can customize this threshold in **Settings > Index Settings**, increasing it up to 10 MB or decreasing it to conserve disk space.

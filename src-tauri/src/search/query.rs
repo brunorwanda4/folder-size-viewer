@@ -215,9 +215,9 @@ pub fn execute_search(
             .unwrap_or("Other")
             .to_string();
 
-        // 4. On-demand snippet generation for top results by re-reading text file
+        // 4. On-demand snippet generation for top results (capped at first 5 to keep search instant)
         let mut snippet_result = None;
-        if !is_dir && snippet_generator.is_some() {
+        if !is_dir && hits.len() < 5 {
             if let Some(ref snip_gen) = snippet_generator {
                 let file_path = Path::new(&path);
                 if let Some(content) =
@@ -318,7 +318,7 @@ pub fn find_matched_ranges(name: &str, terms: &[String]) -> Vec<[usize; 2]> {
     let (mut curr_start, mut curr_end) = byte_ranges[0];
 
     for &(s, e) in &byte_ranges[1..] {
-        if s <= curr_end {
+        if s < curr_end {
             curr_end = curr_end.max(e);
         } else {
             merged.push([curr_start, curr_end]);
@@ -337,10 +337,8 @@ mod tests {
 
     #[test]
     fn test_matched_ranges() {
-        let name = "Invoice_March_2024.pdf";
-        let terms = vec!["invo".to_string(), "2024".to_string()];
-        let ranges = find_matched_ranges(name, &terms);
-
-        assert_eq!(ranges, vec![[0, 4], [14, 18]]);
+        let terms = vec!["app".to_string(), "data".to_string()];
+        let ranges = find_matched_ranges("AppData_Local", &terms);
+        assert_eq!(ranges, vec![[0, 3], [3, 7]]);
     }
 }

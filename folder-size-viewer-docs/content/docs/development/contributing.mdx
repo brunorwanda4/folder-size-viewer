@@ -1,0 +1,52 @@
+---
+title: Contributing
+description: Guidelines for submitting bug reports, feature requests, and code contributions.
+---
+
+We welcome contributions to Folder Size Viewer! Whether you are fixing a bug, adding new file category extensions, or optimizing scanner performance, here is how you can help.
+
+## Code Standards
+
+### Rust Backend
+- Run `cargo fmt` to ensure standard Rust formatting.
+- Run `cargo clippy` and resolve any warnings before submitting PRs.
+- Ensure all filesystem calls handle `io::Error` cleanly without using `.unwrap()` on user paths.
+
+### React Frontend
+- Write type-safe TypeScript (strict mode enabled).
+- Adhere to the established shadcn/ui neutral aesthetic and Tailwind CSS conventions.
+- Verify that changes do not cause unnecessary re-renders in virtualized lists.
+
+---
+
+## Submitting a Pull Request
+
+<Steps>
+  <Step>
+    ### Fork the Repository
+    Fork the repo to your own GitHub account and clone it locally.
+  </Step>
+
+  <Step>
+    ### Create a Feature Branch
+    ```bash
+    git checkout -b feature/my-enhancement
+    ```
+  </Step>
+
+  <Step>
+    ### Verify Builds and Tests
+    Ensure both the desktop app and the documentation build without errors:
+    ```bash
+    bun run build
+    cd folder-size-viewer-docs
+    bun run build
+    bun run lint
+    ```
+  </Step>
+
+  <Step>
+    ### Submit Your PR
+    Push your branch to GitHub and open a Pull Request against the `main` branch. Describe your changes clearly and link any related issues.
+  </Step>
+</Steps>

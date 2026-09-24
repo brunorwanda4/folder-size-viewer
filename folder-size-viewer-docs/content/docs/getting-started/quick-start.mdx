@@ -1,0 +1,47 @@
+---
+title: Quick Start
+description: Start scanning and analyzing your folders in 5 simple steps.
+---
+
+Get up and running with Folder Size Viewer in less than two minutes.
+
+<Steps>
+  <Step>
+    ### Open Folder Size Viewer
+    Launch the app from your Start Menu or by running `folder-size-viewer.exe`. The clean initial scan screen will appear with an empty directory path input and quick preset buttons.
+  </Step>
+
+  <Step>
+    ### Choose or Paste a Target Folder
+    You can target any directory using three easy methods:
+    - Click **Browse...** to open the native Windows folder picker.
+    - Paste an absolute path directly, such as `C:\Users\YourName\Projects` or `D:\Data`.
+    - Type a Windows environment variable shortcut, such as `%LOCALAPPDATA%`, `%USERPROFILE%`, `%TEMP%`, or `~`.
+  </Step>
+
+  <Step>
+    ### Click Scan
+    Hit the **Scan** button (or press <kbd>Enter</kbd>). Folder Size Viewer's multithreaded engine starts scanning immediately:
+    - Directory sizes, item counts, and last modified dates stream into the list in real time.
+    - Results automatically sort largest first so the biggest space hogs appear immediately at the top.
+    - You can click **Stop** at any moment to pause or freeze the scan at its current progress.
+  </Step>
+
+  <Step>
+    ### Drill Down into Heavy Folders
+    Double-click any folder row in the table (or click its card in Cards view) to navigate inside that folder.
+    - The top breadcrumb bar updates instantly (e.g. `This PC > C: > Users > Projects > node_modules`).
+    - Click any parent segment in the breadcrumb trail or press <kbd>Backspace</kbd> to navigate back up.
+  </Step>
+
+  <Step>
+    ### Switch Views or Search Instant Contents
+    - Toggle to **Cards View** for a visual thumbnail layout with Material Icon Theme badges.
+    - Switch to **Charts** tab to see top folders breakdown and storage categorized by file type.
+    - Press <kbd>Ctrl+K</kbd> to launch instant Tantivy search to locate specific file names or text within files in milliseconds.
+  </Step>
+</Steps>
+
+<Callout type="tip" title="Pro Tip: Environment Variables">
+  Want to clear temporary files or app caches quickly? Paste `%TEMP%` or `%LOCALAPPDATA%` directly into the path field and press <kbd>Enter</kbd>. Folder Size Viewer resolves the variables automatically.
+</Callout>

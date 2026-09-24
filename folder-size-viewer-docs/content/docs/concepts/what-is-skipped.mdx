@@ -1,0 +1,36 @@
+---
+title: What Is Skipped
+description: Why symlinks, junctions, and inaccessible system paths are intentionally ignored during scans.
+---
+
+To guarantee safety, prevent infinite loops, and avoid counting phantom disk usage, Folder Size Viewer applies strict traversal filtering rules.
+
+## Symbolic Links and NTFS Junction Points
+
+Windows NTFS supports symbolic links and directory junction points (links that point from one folder location to another directory elsewhere on your disk).
+
+<Callout type="warning" title="Symlinks & Junctions Are Not Followed">
+  Folder Size Viewer **does not follow** symbolic links or NTFS directory junctions during recursive scans.
+</Callout>
+
+### Why Are Links Skipped?
+
+1. **Preventing Infinite Recursion**: It is common on Windows for directory links to point back toward a parent or ancestor directory (e.g. `C:\Users\Username\Application Data\Application Data\...`). Following links could cause an infinite loop that crashes the scanner or hangs indefinitely.
+2. **Preventing Double-Counting**: If a 10 GB directory on `D:\Games` has a junction link inside `C:\Users\Username\Games`, following the link would count that 10 GB twice, falsely inflating your measured disk consumption.
+3. **True Physical Ownership**: Scanning only real directories reflects actual storage residency.
+
+---
+
+## Inaccessible & Permission-Denied Items
+
+Certain system directories (such as `System Volume Information`, protected user directories, or security-locked system logs) restrict access even when running on an administrator account.
+
+- **Non-Fatal Graceful Handling**: When Folder Size Viewer encounters an inaccessible path, it catches the OS error without crashing or halting the scan.
+- **Skipped Items Counter**: The scanner increments a "Skipped Items" counter displayed in the summary status bar.
+- **Inspection**: You can click the skipped items badge in the status bar to view a list of skipped paths and reasons (typically `AccessDenied` or `NotFound`).
+
+---
+
+## Read-Only Guarantee
+
+Folder Size Viewer opens directories with strictly **read-only** filesystem flags. The application contains zero code to write, alter, truncate, or delete files on your system.

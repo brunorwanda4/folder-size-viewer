@@ -1,0 +1,61 @@
+---
+title: Search Syntax
+description: Master query syntax including word combinations, quoted phrases, and field prefixes.
+---
+
+Folder Size Viewer supports an intuitive query syntax that allows you to pinpoint files with surgical precision.
+
+## Basic Syntax
+
+### 1. Multiple Words (AND query)
+Entering multiple words searches for files that contain all of those terms:
+
+```
+budget summary
+```
+Matches files whose name or indexed contents contain both the word "budget" and the word "summary" anywhere in the document.
+
+### 2. Quoted Phrases (Exact match)
+Wrap terms in double quotes to search for the exact consecutive sequence of words:
+
+```
+"quarterly earnings report"
+```
+Matches files containing that exact sequence of characters, preserving word order and spacing.
+
+---
+
+## Field-Specific Prefixes
+
+You can restrict search terms to specific fields by prepending a prefix:
+
+| Prefix | Target Field | Example | What It Matches |
+| :--- | :--- | :--- | :--- |
+| `name:` | File or folder name | `name:invoice` | Items with "invoice" in their name |
+| `content:` | File text contents | `content:"total due"` | Files whose contents include "total due" |
+| `ext:` | File extension | `ext:pdf` | Restricts results strictly to PDF files |
+
+---
+
+## Combining Operators
+
+You can combine prefixes, phrases, and keyword queries in a single search string:
+
+### Find a markdown note containing a specific todo
+```
+ext:md content:"refactor scanner"
+```
+
+### Find an invoice spreadsheet with a supplier name
+```
+name:2024 ext:xlsx content:"Acme Corp"
+```
+
+### Search for TypeScript code defining an interface
+```
+ext:ts name:types content:"interface UserProfile"
+```
+
+<Callout type="tip" title="Case Sensitivity">
+  All searches are case-insensitive by default. Searching for `Report`, `report`, or `REPORT` returns the exact same results.
+</Callout>

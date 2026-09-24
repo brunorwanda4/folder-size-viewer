@@ -1,0 +1,43 @@
+---
+title: Charts
+description: Visualize top folder sizes and storage breakdown categorized across 10 file types.
+---
+
+When auditing disk space, visual representations often reveal space hogs much faster than raw numbers. Folder Size Viewer provides interactive graphical breakdowns powered by Recharts.
+
+<Screenshot
+  src="/images/charts.png"
+  alt="Charts View"
+  caption="Visual breakdown of top subdirectories and storage distribution by file type"
+/>
+
+## Top Folders by Size
+
+The **Top Folders** chart displays a horizontal bar chart illustrating the largest immediate subdirectories in the scanned path:
+
+- **Automatic "Others" Grouping**: To keep the visualization readable, the largest subdirectories are displayed individually, while the remaining smaller directories are grouped into an aggregated **Others** category.
+- **Interactive Tooltips**: Hover over any bar or segment to see the exact byte size, formatted size, and exact percentage share.
+- **Direct Drill Down**: Clicking on a folder bar in the chart takes you directly inside that folder.
+
+---
+
+## Storage by File Type
+
+Folder Size Viewer automatically analyzes the extensions of every file within the scanned directory tree and classifies them into **10 standard categories**:
+
+| Category | File Extensions Included | Example Use Case |
+| :--- | :--- | :--- |
+| **Images** | `.png`, `.jpg`, `.jpeg`, `.webp`, `.svg`, `.gif`, `.bmp`, `.tiff`, `.ico`, `.psd` | Photo libraries, graphics, screenshots |
+| **Video** | `.mp4`, `.mkv`, `.avi`, `.mov`, `.wmv`, `.flv`, `.webm`, `.m4v` | Recordings, raw footage, movies |
+| **Audio** | `.mp3`, `.wav`, `.flac`, `.aac`, `.ogg`, `.m4a`, `.wma` | Music collections, podcasts, samples |
+| **Documents** | `.pdf`, `.docx`, `.doc`, `.xlsx`, `.pptx`, `.txt`, `.rtf`, `.csv`, `.odt` | Spreadsheets, reports, eBooks |
+| **Archives** | `.zip`, `.tar`, `.gz`, `.7z`, `.rar`, `.bz2`, `.xz`, `.iso`, `.tgz` | Compressed backups, software bundles |
+| **Code** | `.ts`, `.tsx`, `.js`, `.jsx`, `.rs`, `.py`, `.go`, `.java`, `.c`, `.cpp`, `.h`, `.json`, `.yaml`, `.html`, `.css` | Source code files, packages, manifests |
+| **Apps & Executables** | `.exe`, `.msi`, `.dll`, `.sys`, `.bat`, `.cmd`, `.ps1`, `.vbs` | Program binaries, runtime libraries |
+| **Databases** | `.sqlite`, `.db`, `.mdb`, `.accdb`, `.sql`, `.rdb`, `.frm`, `.ibd` | Local application databases, exports |
+| **System & Logs** | `.log`, `.ini`, `.evtx`, `.dmp`, `.reg`, `.config`, `.dat` | Crash dumps, Windows event logs |
+| **Other** | All uncategorized or unrecognized extensions | Miscellaneous binary data |
+
+<Callout type="info" title="Real-Time Aggregation">
+  File type categorization aggregates across all subfolders recursively. Even if video files are scattered across hundreds of subdirectories, the **Video** category accurately sums their cumulative footprint.
+</Callout>

@@ -128,7 +128,7 @@ export function SearchView({
     if (lastItem.index >= hits.length - 2 && hits.length < total && !isSearching && !isLoadingMore) {
       loadMore();
     }
-  }, [rowVirtualizer.getVirtualItems(), hits.length, total, isSearching, isLoadingMore, loadMore]);
+  }, [rowVirtualizer, hits.length, total, isSearching, isLoadingMore, loadMore]);
 
   const handleOpen = async (path: string) => {
     try {

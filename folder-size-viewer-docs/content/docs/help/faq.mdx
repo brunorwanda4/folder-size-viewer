@@ -1,0 +1,22 @@
+---
+title: Frequently Asked Questions
+description: Common questions about Folder Size Viewer, security, file systems, and updates.
+---
+
+### Does Folder Size Viewer ever delete or modify my files?
+**No.** Folder Size Viewer is built strictly as a read-only disk auditor. It contains no file deletion, modification, or write APIs. To delete files you identify as unwanted, use the **Show in Explorer** action to manage them using Windows File Explorer.
+
+### Why does Folder Size Viewer show a different size than Windows "Size on disk"?
+Folder Size Viewer displays **Logical Size** (the actual byte length of the file's data). Windows "Size on disk" rounds up every file to the nearest allocation cluster (usually 4 KB blocks) and accounts for NTFS filesystem compression. See [How Sizes Are Calculated](/docs/concepts/how-sizes-are-calculated) for a complete explanation.
+
+### Does the app work on network drives and external USB disks?
+**Yes.** You can scan mapped drive letters (e.g. `Z:\`), UNC network paths (e.g. `\\server\share`), and external USB hard drives or flash drives without limitation.
+
+### Can I run this on macOS or Linux?
+Folder Size Viewer is currently optimized and distributed as a Windows-first desktop utility. While Tauri v2 supports cross-platform compilation, certain scanner optimizations and NTFS path conventions (such as junction detection and drive letter handling) are tailored for Windows.
+
+### How much memory does a scan use?
+Thanks to Rust's memory efficiency and virtualized UI rendering, scanning even a drive with over 500,000 files typically consumes less than 150 MB of RAM.
+
+### How can I report a bug or request a feature?
+You can open an issue on the project's GitHub repository. Please provide your Windows version, approximate folder size, and any reproduction steps.

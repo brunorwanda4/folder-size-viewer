@@ -74,140 +74,140 @@ export function ResultsTable({
   };
 
   return (
-    <Table
-      containerClassName="flex-1 overflow-auto relative select-text"
-      className="relative select-text"
-    >
-      <TableHeader className="sticky top-0 z-20 bg-background/95 backdrop-blur-md shadow-sm border-b [&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-background/95 [&_th]:backdrop-blur-md [&_th]:border-b [&_th]:shadow-[0_1px_0_0_hsl(var(--border))]">
-        <TableRow className="hover:bg-transparent">
-          <TableHead className="w-12 text-center">Type</TableHead>
-          <TableHead
-            className="cursor-pointer group select-none text-foreground font-semibold"
-            onClick={() => onSortChange("name")}
-          >
-            <div className="flex items-center">
-              <span>Name</span>
-              {renderSortIndicator("name")}
-            </div>
-          </TableHead>
-          <TableHead
-            className="cursor-pointer group select-none text-right text-foreground font-semibold w-32"
-            onClick={() => onSortChange("size")}
-          >
-            <div className="flex items-center justify-end">
-              <span>Size</span>
-              {renderSortIndicator("size")}
-            </div>
-          </TableHead>
-          <TableHead className="w-36 text-foreground font-semibold text-center">
-            % of Total
-          </TableHead>
-          <TableHead className="w-24 text-right text-foreground font-semibold">
-            Files
-          </TableHead>
-          <TableHead
-            className="cursor-pointer group select-none text-foreground font-semibold w-40"
-            onClick={() => onSortChange("modified")}
-          >
-            <div className="flex items-center">
-              <span>Modified</span>
-              {renderSortIndicator("modified")}
-            </div>
-          </TableHead>
-          <TableHead className="w-28 text-center text-foreground font-semibold">
-            Actions
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-
-      <TableBody>
-        {entries.length === 0 && !isScanning ? (
-          <TableRow>
-            <TableCell
-              colSpan={7}
-              className="h-48 text-center text-muted-foreground"
+    <TooltipProvider delayDuration={200}>
+      <Table
+        containerClassName="flex-1 overflow-auto relative select-text"
+        className="relative select-text"
+      >
+        <TableHeader className="sticky top-0 z-20 bg-background/95 backdrop-blur-md shadow-sm border-b [&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-background/95 [&_th]:backdrop-blur-md [&_th]:border-b [&_th]:shadow-[0_1px_0_0_hsl(var(--border))]">
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="w-12 text-center">Type</TableHead>
+            <TableHead
+              className="cursor-pointer group select-none text-foreground font-semibold"
+              onClick={() => onSortChange("name")}
             >
-              <div className="flex flex-col items-center justify-center gap-2">
-                <Inbox className="w-8 h-8 opacity-40" />
-                <p className="font-medium text-sm">No items found</p>
-                <p className="text-xs text-muted-foreground">
-                  {searchQuery
-                    ? "Try clearing your search query"
-                    : "Enter a folder path and click Scan to analyze directory contents"}
-                </p>
+              <div className="flex items-center">
+                <span>Name</span>
+                {renderSortIndicator("name")}
               </div>
-            </TableCell>
+            </TableHead>
+            <TableHead
+              className="cursor-pointer group select-none text-right text-foreground font-semibold w-32"
+              onClick={() => onSortChange("size")}
+            >
+              <div className="flex items-center justify-end">
+                <span>Size</span>
+                {renderSortIndicator("size")}
+              </div>
+            </TableHead>
+            <TableHead className="w-36 text-foreground font-semibold text-center">
+              % of Total
+            </TableHead>
+            <TableHead className="w-24 text-right text-foreground font-semibold">
+              Files
+            </TableHead>
+            <TableHead
+              className="cursor-pointer group select-none text-foreground font-semibold w-40"
+              onClick={() => onSortChange("modified")}
+            >
+              <div className="flex items-center">
+                <span>Modified</span>
+                {renderSortIndicator("modified")}
+              </div>
+            </TableHead>
+            <TableHead className="w-28 text-center text-foreground font-semibold">
+              Actions
+            </TableHead>
           </TableRow>
-        ) : (
-          entries.map((entry) => {
-            const rank = topThreePaths.get(entry.path);
-            const percent =
-              totalSize > 0
-                ? Math.min(100, (entry.sizeBytes / totalSize) * 100)
-                : 0;
+        </TableHeader>
 
-            return (
-              <TableRow
-                key={entry.path}
-                onClick={() => entry.isDir && onDrillDown(entry.path)}
-                className={`transition-colors group ${
-                  entry.isDir
-                    ? "cursor-pointer hover:bg-muted/70"
-                    : "hover:bg-muted/40"
-                }`}
+        <TableBody>
+          {entries.length === 0 && !isScanning ? (
+            <TableRow>
+              <TableCell
+                colSpan={7}
+                className="h-48 text-center text-muted-foreground"
               >
-                {/* Material Icon Theme icon column */}
-                <TableCell className="text-center p-2.5">
-                  <div className="flex items-center justify-center">
-                    <FileIcon
-                      name={entry.name}
-                      isDir={entry.isDir}
-                      size={18}
-                    />
-                  </div>
-                </TableCell>
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <Inbox className="w-8 h-8 opacity-40" />
+                  <p className="font-medium text-sm">No items found</p>
+                  <p className="text-xs text-muted-foreground">
+                    {searchQuery
+                      ? "Try clearing your search query"
+                      : "Enter a folder path and click Scan to analyze directory contents"}
+                  </p>
+                </div>
+              </TableCell>
+            </TableRow>
+          ) : (
+            entries.map((entry) => {
+              const rank = topThreePaths.get(entry.path);
+              const percent =
+                totalSize > 0
+                  ? Math.min(100, (entry.sizeBytes / totalSize) * 100)
+                  : 0;
 
-                {/* Name + Rank badge column */}
-                <TableCell className="font-medium max-w-xs md:max-w-md truncate p-2.5">
-                  <div className="flex items-center gap-2 truncate">
-                    <span
-                      className={`truncate ${
-                        entry.isDir
-                          ? "font-semibold text-foreground group-hover:text-primary transition-colors"
-                          : "text-foreground/90"
-                      }`}
-                      title={entry.path}
-                    >
-                      {entry.name}
-                    </span>
+              return (
+                <TableRow
+                  key={entry.path}
+                  onClick={() => entry.isDir && onDrillDown(entry.path)}
+                  className={`transition-colors group ${
+                    entry.isDir
+                      ? "cursor-pointer hover:bg-muted/70"
+                      : "hover:bg-muted/40"
+                  }`}
+                >
+                  {/* Material Icon Theme icon column */}
+                  <TableCell className="text-center p-2.5">
+                    <div className="flex items-center justify-center">
+                      <FileIcon
+                        name={entry.name}
+                        isDir={entry.isDir}
+                        size={18}
+                      />
+                    </div>
+                  </TableCell>
 
-                    {rank === 1 && (
-                      <Badge
-                        variant="rank1"
-                        className="text-[10px] px-1.5 py-0 shrink-0"
+                  {/* Name + Rank badge column */}
+                  <TableCell className="font-medium max-w-xs md:max-w-md truncate p-2.5">
+                    <div className="flex items-center gap-2 truncate">
+                      <span
+                        className={`truncate ${
+                          entry.isDir
+                            ? "font-semibold text-foreground group-hover:text-primary transition-colors"
+                            : "text-foreground/90"
+                        }`}
+                        title={entry.path}
                       >
-                        #1 Largest
-                      </Badge>
-                    )}
-                    {rank === 2 && (
-                      <Badge
-                        variant="rank2"
-                        className="text-[10px] px-1.5 py-0 shrink-0"
-                      >
-                        #2 Largest
-                      </Badge>
-                    )}
-                    {rank === 3 && (
-                      <Badge
-                        variant="rank3"
-                        className="text-[10px] px-1.5 py-0 shrink-0"
-                      >
-                        #3 Largest
-                      </Badge>
-                    )}
+                        {entry.name}
+                      </span>
 
-                    {entry.error && (
-                      <TooltipProvider>
+                      {rank === 1 && (
+                        <Badge
+                          variant="rank1"
+                          className="text-[10px] px-1.5 py-0 shrink-0"
+                        >
+                          #1 Largest
+                        </Badge>
+                      )}
+                      {rank === 2 && (
+                        <Badge
+                          variant="rank2"
+                          className="text-[10px] px-1.5 py-0 shrink-0"
+                        >
+                          #2 Largest
+                        </Badge>
+                      )}
+                      {rank === 3 && (
+                        <Badge
+                          variant="rank3"
+                          className="text-[10px] px-1.5 py-0 shrink-0"
+                        >
+                          #3 Largest
+                        </Badge>
+                      )}
+
+                      {entry.error && (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span className="inline-flex">
@@ -218,14 +218,12 @@ export function ResultsTable({
                             <p className="text-xs">{entry.error}</p>
                           </TooltipContent>
                         </Tooltip>
-                      </TooltipProvider>
-                    )}
-                  </div>
-                </TableCell>
+                      )}
+                    </div>
+                  </TableCell>
 
-                {/* Size column */}
-                <TableCell className="text-right font-mono font-medium text-xs p-2.5">
-                  <TooltipProvider>
+                  {/* Size column */}
+                  <TableCell className="text-right font-mono font-medium text-xs p-2.5">
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span className="cursor-help">
@@ -238,38 +236,36 @@ export function ResultsTable({
                         </p>
                       </TooltipContent>
                     </Tooltip>
-                  </TooltipProvider>
-                </TableCell>
+                  </TableCell>
 
-                {/* % of Total column */}
-                <TableCell className="p-2.5">
-                  <div className="flex items-center gap-2">
-                    <Progress value={percent} className="h-2 flex-1" />
-                    <span className="text-[11px] font-mono text-muted-foreground w-11 text-right shrink-0">
-                      {percent < 0.1 && percent > 0
-                        ? "<0.1%"
-                        : `${percent.toFixed(1)}%`}
-                    </span>
-                  </div>
-                </TableCell>
+                  {/* % of Total column */}
+                  <TableCell className="p-2.5">
+                    <div className="flex items-center gap-2">
+                      <Progress value={percent} className="h-2 flex-1" />
+                      <span className="text-[11px] font-mono text-muted-foreground w-11 text-right shrink-0">
+                        {percent < 0.1 && percent > 0
+                          ? "<0.1%"
+                          : `${percent.toFixed(1)}%`}
+                      </span>
+                    </div>
+                  </TableCell>
 
-                {/* Files count column */}
-                <TableCell className="text-right font-mono text-xs text-muted-foreground p-2.5">
-                  {entry.isDir ? formatNumber(entry.fileCount) : "-"}
-                </TableCell>
+                  {/* Files count column */}
+                  <TableCell className="text-right font-mono text-xs text-muted-foreground p-2.5">
+                    {entry.isDir ? formatNumber(entry.fileCount) : "-"}
+                  </TableCell>
 
-                {/* Modified column */}
-                <TableCell className="text-xs text-muted-foreground p-2.5 whitespace-nowrap">
-                  {formatDate(entry.modified)}
-                </TableCell>
+                  {/* Modified column */}
+                  <TableCell className="text-xs text-muted-foreground p-2.5 whitespace-nowrap">
+                    {formatDate(entry.modified)}
+                  </TableCell>
 
-                {/* Actions column */}
-                <TableCell
-                  className="text-center p-2.5"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    <TooltipProvider>
+                  {/* Actions column */}
+                  <TableCell
+                    className="text-center p-2.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-center gap-1">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -286,9 +282,7 @@ export function ResultsTable({
                           <p className="text-xs">Copy full path</p>
                         </TooltipContent>
                       </Tooltip>
-                    </TooltipProvider>
 
-                    <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -319,9 +313,7 @@ export function ResultsTable({
                           </p>
                         </TooltipContent>
                       </Tooltip>
-                    </TooltipProvider>
 
-                    <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -342,45 +334,45 @@ export function ResultsTable({
                           </p>
                         </TooltipContent>
                       </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                </TableCell>
-              </TableRow>
-            );
-          })
-        )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          )}
 
-        {/* Skeleton rows when initial entries are waiting or loading */}
-        {isScanning && entries.length === 0 && (
-          <>
-            {[...Array(6)].map((_, i) => (
-              <TableRow key={`skeleton-${i}`}>
-                <TableCell className="p-2.5 text-center">
-                  <Skeleton className="w-4 h-4 mx-auto rounded" />
-                </TableCell>
-                <TableCell className="p-2.5">
-                  <Skeleton className="h-4 w-48 rounded" />
-                </TableCell>
-                <TableCell className="p-2.5 text-right">
-                  <Skeleton className="h-4 w-16 ml-auto rounded" />
-                </TableCell>
-                <TableCell className="p-2.5">
-                  <Skeleton className="h-2 w-full rounded" />
-                </TableCell>
-                <TableCell className="p-2.5 text-right">
-                  <Skeleton className="h-4 w-10 ml-auto rounded" />
-                </TableCell>
-                <TableCell className="p-2.5">
-                  <Skeleton className="h-4 w-24 rounded" />
-                </TableCell>
-                <TableCell className="p-2.5 text-center">
-                  <Skeleton className="h-6 w-20 mx-auto rounded" />
-                </TableCell>
-              </TableRow>
-            ))}
-          </>
-        )}
-      </TableBody>
-    </Table>
+          {/* Skeleton rows when initial entries are waiting or loading */}
+          {isScanning && entries.length === 0 && (
+            <>
+              {[...Array(6)].map((_, i) => (
+                <TableRow key={`skeleton-${i}`}>
+                  <TableCell className="p-2.5 text-center">
+                    <Skeleton className="w-4 h-4 mx-auto rounded" />
+                  </TableCell>
+                  <TableCell className="p-2.5">
+                    <Skeleton className="w-48 h-4 rounded" />
+                  </TableCell>
+                  <TableCell className="p-2.5 text-right">
+                    <Skeleton className="w-16 h-4 ml-auto rounded" />
+                  </TableCell>
+                  <TableCell className="p-2.5">
+                    <Skeleton className="w-full h-2 rounded" />
+                  </TableCell>
+                  <TableCell className="p-2.5 text-right">
+                    <Skeleton className="w-12 h-4 ml-auto rounded" />
+                  </TableCell>
+                  <TableCell className="p-2.5">
+                    <Skeleton className="w-24 h-4 rounded" />
+                  </TableCell>
+                  <TableCell className="p-2.5 text-center">
+                    <Skeleton className="w-16 h-6 mx-auto rounded" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </>
+          )}
+        </TableBody>
+      </Table>
+    </TooltipProvider>
   );
 }

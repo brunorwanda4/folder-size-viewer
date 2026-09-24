@@ -1,0 +1,10 @@
+{
+  "title": "Search",
+  "pages": [
+    "overview",
+    "building-the-index",
+    "searching-names-and-contents",
+    "search-syntax",
+    "index-settings"
+  ]
+}

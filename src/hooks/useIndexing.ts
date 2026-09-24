@@ -34,12 +34,15 @@ export function useIndexing() {
   useEffect(() => {
     isMounted.current = true;
     refreshStatus();
+
+    // Only set up a periodic polling interval while indexing is actively running
+    if (!isIndexing) return;
+
     const interval = setInterval(refreshStatus, 3000);
     return () => {
-      isMounted.current = false;
       clearInterval(interval);
     };
-  }, [refreshStatus]);
+  }, [isIndexing, refreshStatus]);
 
   const startIndexing = useCallback(
     async (rebuild: boolean = false) => {

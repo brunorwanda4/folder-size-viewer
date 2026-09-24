@@ -1,0 +1,86 @@
+---
+title: Installation
+description: Install Folder Size Viewer on Windows via prebuilt installer or build from source.
+---
+
+Folder Size Viewer is distributed as a lightweight native Windows executable with no runtime dependencies.
+
+## System Requirements
+
+- **Operating System**: Windows 10 (version 1809+) or Windows 11 (64-bit).
+- **Runtime**: Microsoft Edge WebView2 (included by default on Windows 10/11).
+- **Hardware**: Minimum 4 GB RAM, 50 MB free disk space for the app binary. Additional disk space may be utilized if you enable full-text content indexing.
+
+---
+
+## Installation Methods
+
+<Tabs items={['Prebuilt Installer', 'Build from Source']}>
+  <Tab value="Prebuilt Installer">
+    The simplest way to install Folder Size Viewer is using the official release package.
+
+    <Steps>
+      <Step>
+        ### Download the Release
+        Visit the repository's Releases page on GitHub and download the latest installer (`.msi` or `setup.exe`).
+      </Step>
+      <Step>
+        ### Run the Setup Wizard
+        Double-click the installer. Follow the on-screen prompts to select your destination directory.
+        <Callout type="info" title="Windows SmartScreen">
+          If Windows SmartScreen displays an *Unrecognized app* alert, click **More info** and then select **Run anyway**. This appears because the installer is signed with a community certificate.
+        </Callout>
+      </Step>
+      <Step>
+        ### Launch Folder Size Viewer
+        Once installation finishes, launch **Folder Size Viewer** from the Start Menu or your desktop shortcut.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab value="Build from Source">
+    If you prefer to compile from source or contribute to development, you can build the native Tauri binary locally.
+
+    ### Prerequisites
+
+    Ensure you have the following installed on your Windows development environment:
+    - **Node.js** (v20 or higher) and **Bun** (or npm/pnpm).
+    - **Rust & Cargo** (installed via [rustup.rs](https://rustup.rs)) targeting `x86_64-pc-windows-msvc`.
+    - **C++ Build Tools**: Visual Studio Build Tools with the *Desktop development with C++* workload.
+    - **WebView2**: Windows 10/11 includes this out of the box.
+
+    ### Build Instructions
+
+    <Steps>
+      <Step>
+        ### Clone the Repository
+        ```bash
+        git clone https://github.com/<your-username>/folder-size-viewer.git
+        cd folder-size-viewer
+        ```
+      </Step>
+      <Step>
+        ### Install Dependencies
+        ```bash
+        bun install
+        ```
+      </Step>
+      <Step>
+        ### Build Native Application
+        ```bash
+        bun run tauri build
+        ```
+        The compiled MSI and standalone executable will be located in:
+        ```
+        src-tauri/target/release/bundle/msi/
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Updating the App
+
+When a new version is released:
+1. Download the latest installer from the Releases page.
+2. Run the installer; it will automatically upgrade your existing installation in-place while preserving your local search index and configuration settings stored in `%LOCALAPPDATA%\folder-size-viewer`.

@@ -1,0 +1,58 @@
+---
+title: Scanning a Folder
+description: How to target directories, leverage path shortcuts, stream live results, and cancel scans.
+---
+
+The core function of Folder Size Viewer is high-performance directory analysis. Instead of waiting for a slow recursive scan to complete before rendering, the app streams items into the interface asynchronously as they are computed.
+
+<Screenshot
+  src="/images/main-window.png"
+  alt="Main Window Scanning"
+  caption="Streaming scan results with live percentage bars, item counts, and last modified dates"
+/>
+
+## Specifying a Target Folder
+
+You can specify which folder or drive to scan in several ways:
+
+### 1. Manual Path Input
+Type or paste any valid Windows path directly into the header input field, such as:
+- `C:\Users\Username\Downloads`
+- `D:\SteamLibrary`
+- `\\NAS-Server\Backups` (network UNC paths are fully supported)
+
+### 2. Path Expansion Shortcuts
+Folder Size Viewer automatically resolves standard Windows environment variables and Unix home shorthand:
+
+| Shortcut | Resolves To | Common Use Case |
+| :--- | :--- | :--- |
+| `%USERPROFILE%` | `C:\Users\<Username>` | Scanning user documents, desktop, and code projects |
+| `%LOCALAPPDATA%` | `C:\Users\<Username>\AppData\Local` | Locating large electron caches, temp files, and app data |
+| `%APPDATA%` | `C:\Users\<Username>\AppData\Roaming` | Inspecting roaming configurations and packages |
+| `%TEMP%` | `C:\Users\<Username>\AppData\Local\Temp` | Cleaning temporary build artifacts and installers |
+| `~` | User profile home directory | Quick Unix-style shortcut for developers |
+
+### 3. Native Folder Picker
+Click the **Browse...** button to the right of the path field to open the native Windows folder selector dialog.
+
+---
+
+## The Scanning Lifecycle
+
+Once you click **Scan** (or press <kbd>Enter</kbd>):
+
+1. **Multithreaded Traversal**: A worker pool in the Rust backend opens the directory and begins non-blocking traversal.
+2. **Live Streaming UI**:
+   - As folders and files are sized, updates stream through Tauri IPC channels into the React frontend.
+   - Rows immediately appear sorted **largest first**, allowing you to identify primary storage consumers within the first few seconds of scanning.
+   - The summary bar displays the continuous count of scanned items, current total size, elapsed scan duration, and any skipped files.
+3. **Percent-of-Total Visual Bars**:
+   - Each entry features a horizontal visual bar representing its proportional share of the parent folder's total size.
+   - Color accents help differentiate heavy folders from lightweight items.
+4. **Cancellable at Any Time**:
+   - If you are scanning a massive drive and already see what you need, click the red **Stop** button (or press <kbd>Esc</kbd>).
+   - The scan safely halts, preserving all data gathered up to that instant for immediate inspection, drill-down, and filtering.
+
+<Callout type="tip" title="Rescanning">
+  Press <kbd>Ctrl+R</kbd> or <kbd>F5</kbd> anytime to initiate a fresh re-scan of the current active directory.
+</Callout>

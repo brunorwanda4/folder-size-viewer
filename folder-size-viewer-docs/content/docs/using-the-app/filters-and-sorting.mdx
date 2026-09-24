@@ -1,0 +1,48 @@
+---
+title: Filters and Sorting
+description: Filter items by type or name, and sort scanned results by size, name, or modification date.
+---
+
+When scanning folders that contain thousands of mixed items, filters and sorting controls help you immediately isolate the files or subdirectories you care about.
+
+## Type Filters
+
+Located in the toolbar next to the view toggle, the type filter buttons allow you to restrict which entries appear in the active listing:
+
+- **All**: Displays both subdirectories and individual files (default).
+- **Folders Only**: Hides individual files, focusing solely on subdirectories. Useful when evaluating which subfolder to prune next.
+- **Files Only**: Hides subfolders, allowing you to quickly spot huge loose files (such as massive `.iso` images, `.zip` archives, or forgotten `.mp4` video exports) sitting at the root of a folder.
+
+---
+
+## Real-Time Search Filter
+
+The inline search box in the toolbar allows you to filter the current list as you type:
+
+- Matches against file and folder names instantly.
+- Non-matching rows are immediately hidden from the view without requiring a new scan.
+- Clearing the search box (<kbd>Esc</kbd>) restores the full list immediately.
+
+<Callout type="note" title="Filter vs Instant Search">
+  The inline toolbar filter operates on the **currently displayed directory**. If you want to search across all nested subdirectories or search inside file contents, use the global [Tantivy Search](/docs/search/overview) (<kbd>Ctrl+K</kbd>).
+</Callout>
+
+---
+
+## Sorting Options
+
+You can sort the active view by any of three primary attributes, in either ascending or descending order:
+
+### 1. By Size (Default)
+- **Largest First (Descending)**: The default behavior of Folder Size Viewer. Puts the heaviest space consumers at the very top.
+- **Smallest First (Ascending)**: Useful when locating empty files or directories with zero bytes.
+
+### 2. By Name
+- **A to Z**: Alphabetical ascending sort.
+- **Z to A**: Alphabetical descending sort.
+
+### 3. By Last Modified Date
+- **Newest First**: Shows the most recently modified or written files at the top. Great for auditing what was generated during a recent build or download session.
+- **Oldest First**: Reveals stale files that have remained untouched for years.
+
+In Table View, you can also click directly on any column header (**Name**, **Size**, **Items**, or **Last Modified**) to cycle between ascending and descending sort orders.

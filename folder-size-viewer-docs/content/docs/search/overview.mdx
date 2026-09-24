@@ -1,0 +1,42 @@
+---
+title: Search Overview
+description: High-speed full-text search powered by Tantivy across file names and textual contents.
+---
+
+Folder Size Viewer embeds **Tantivy**, an ultra-fast full-text search engine library written in Rust. Often referred to as "the Rust equivalent of Apache Lucene", Tantivy allows Folder Size Viewer to index hundreds of thousands of files and execute complex queries in sub-millisecond timeframes.
+
+Press <kbd>Ctrl + K</kbd> anywhere in the app to open the Instant Search dialog.
+
+<Screenshot
+  src="/images/search.png"
+  alt="Search Dialog"
+  caption="Instant Tantivy search dialog with scope options, search modes, and instant result actions"
+/>
+
+## Search Scopes
+
+You can restrict the boundary of your query using the scope selector at the top of the search dialog:
+
+- **This computer (Default)**: Searches across all indexed fixed drives and configured indexing folders.
+- **Current folder**: Restricts the search specifically to the directory you currently have open in the scanner, including all of its subdirectories.
+
+---
+
+## Search Modes
+
+Choose how your query is evaluated:
+
+1. **Names**: Matches query keywords strictly against file names and directory names. This mode is virtually instantaneous even across millions of indexed files.
+2. **Contents**: Matches your query strictly against the indexed text inside document files and code files (e.g. searching for a specific string inside `.rs`, `.ts`, `.md`, or `.txt` files).
+3. **Both (Unified)**: Queries both names and file content simultaneously, displaying matching files ranked by relevance score.
+
+---
+
+## Result Actions Menu
+
+Every search result card provides one-click action buttons to take immediate action:
+
+- **Open**: Launches the file with its associated default Windows application.
+- **Show in Explorer**: Opens Windows File Explorer with the target file highlighted.
+- **Copy Path**: Copies the complete absolute path to your Windows clipboard.
+- **Analyze Size**: Directs Folder Size Viewer to immediately navigate to the containing folder and scan its size hierarchy.

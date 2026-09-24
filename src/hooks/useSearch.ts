@@ -93,7 +93,7 @@ export function useSearch(currentFolderPath?: string) {
     [currentFolderPath]
   );
 
-  // Trigger search when query or filters change (debounced 150ms for typing)
+  // Trigger search when query or filters change (debounced 250ms for smooth typing)
   useEffect(() => {
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
@@ -101,7 +101,7 @@ export function useSearch(currentFolderPath?: string) {
 
     debounceTimer.current = setTimeout(() => {
       performSearch(query, scope, mode, filterType, filterCategory, 0, false);
-    }, 150);
+    }, 250);
 
     return () => {
       if (debounceTimer.current) {

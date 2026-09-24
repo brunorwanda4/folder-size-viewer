@@ -1,0 +1,39 @@
+---
+title: Building the Search Index
+description: How the local Tantivy index is created, configured, and stored on your machine.
+---
+
+To provide instant search results without stalling your system during everyday file lookups, Folder Size Viewer constructs an inverted search index locally.
+
+## Default Index Targets
+
+When you first launch Folder Size Viewer, it initializes indexing with optimized defaults:
+
+1. **File Names**: All fixed local Windows drives (such as `C:\` and `D:\`) are scanned for file and folder names.
+2. **File Contents**: Full-text indexing is enabled specifically for your user profile directory (`%USERPROFILE%`), covering your Documents, Desktop, Code repositories, and personal folders.
+
+<Callout type="info" title="Why Not Index All Drive Contents by Default?">
+  System directories like `C:\Windows` and build directories like `node_modules` contain millions of lines of transient code and binaries that would bloat disk usage and waste indexing CPU cycles. Targeting user folders balances comprehensive content search with minimal resource usage.
+</Callout>
+
+---
+
+## Local Index Storage
+
+The entire search index database is stored on your local hard drive inside:
+
+```
+%LOCALAPPDATA%\folder-size-viewer\tantivy-index\
+```
+
+- **Zero Cloud Uploads**: The index never leaves your computer.
+- **Compact Inverted Format**: Tantivy compresses indexed terms using SIMD-accelerated bit-packing, resulting in an index footprint that is typically a tiny fraction of the original text size.
+- **Easy Cleanup**: You can delete or clear this directory at any time from the app settings without affecting your actual personal files.
+
+---
+
+## Background Worker & Priority
+
+Indexing runs in a background thread at lower system priority (idle/below-normal thread priority in Windows). This ensures that heavy indexing never interferes with your foreground gaming, editing, or browsing performance.
+
+You can monitor indexing status or pause it at any time from the **Search Settings** panel.

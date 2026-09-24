@@ -1,0 +1,34 @@
+---
+title: How Sizes Are Calculated
+description: Logical file size vs Size on Disk, cluster allocation, and measurement units.
+---
+
+When looking at files in Windows, you may notice that Windows File Explorer often displays two different numbers in a file's Properties dialog: **Size** and **Size on disk**.
+
+Folder Size Viewer reports **Logical Size** by default.
+
+## Logical Size vs. Size on Disk
+
+| Metric | Definition | How It Works |
+| :--- | :--- | :--- |
+| **Logical Size (Used by Folder Size Viewer)** | The actual number of bytes comprising the file's data. | If a text file contains 150 characters, its logical size is 150 bytes. If you copy or send this file, 150 bytes are transferred. |
+| **Size on Disk** | The physical disk space allocated to the file by the filesystem (NTFS/FAT32/exFAT). | Disks allocate space in fixed blocks called **clusters** (typically 4,096 bytes / 4 KB). Even a 10-byte file consumes at least one 4 KB cluster on disk. |
+
+### Why Folder Size Viewer Uses Logical Size
+
+1. **Portability & Accuracy**: Logical size represents the actual data payload. When backing up to another drive or uploading to cloud storage, logical size is the true measurement of data transfer.
+2. **Consistency Across Drives**: Different drives formatted with different cluster sizes (e.g. 4 KB vs 64 KB) report radically different "Size on Disk" values for the exact same set of files. Logical size remains identical regardless of where the files are stored.
+3. **Parity with Windows Explorer**: When Windows File Explorer displays file sizes in directory listings, it presents logical size.
+
+---
+
+## Unit Formatting (Binary 1024-based)
+
+Folder Size Viewer formats byte counts using standard binary multiples:
+
+- `1 KB` = 1,024 Bytes
+- `1 MB` = 1,024 KB = 1,048,576 Bytes
+- `1 GB` = 1,024 MB = 1,073,741,824 Bytes
+- `1 TB` = 1,024 GB = 1,099,511,627,776 Bytes
+
+Values are dynamically formatted to two decimal places (e.g. `4.28 GB`) for optimal readability.

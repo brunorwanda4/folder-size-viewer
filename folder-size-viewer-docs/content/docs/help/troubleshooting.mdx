@@ -1,0 +1,40 @@
+---
+title: Troubleshooting
+description: Solutions for common scanning bottlenecks, permissions, and search indexing issues.
+---
+
+Encountering an unexpected behavior? Check these verified troubleshooting steps.
+
+## Scan Issues
+
+### The scan appears stuck or takes a very long time
+- **Check for Slow Network Mounts**: If you are scanning a mapped network drive (NAS) over Wi-Fi, round-trip latency for thousands of file stat requests will be considerably slower than a local NVMe SSD.
+- **Deeply Nested Dependencies**: Directories like `node_modules` or `.cargo` can contain over 150,000 individual files. The scan is actively working; you can check the live files ticker in the summary bar to confirm items are incrementing.
+- **Stop Button**: Remember you can click **Stop** at any moment to evaluate what has been scanned so far.
+
+### "Access Denied" or High Skipped Item Count
+- **System Folders**: Folders such as `C:\System Volume Information` and `C:\Windows\System32\config` are locked by the Windows kernel.
+- **Administrator Privileges**: By default, Folder Size Viewer runs as a standard user process. If you need to scan another user's profile on a multi-user machine, right-click `Folder Size Viewer` and select **Run as administrator**.
+
+---
+
+## Search Issues
+
+### Search returns zero results for a known file
+1. **Scope Check**: Verify whether your search scope is set to **This computer** or **Current folder**. If set to "Current folder", items outside the active directory will not match.
+2. **Indexing Status**: Open **Settings > Index Settings** and verify that the index has finished initial generation.
+3. **Exclusion Rules**: Confirm that the target directory or parent folder is not listed under default exclusions (e.g. `node_modules` or `.git`).
+
+### Text content search isn't finding words inside a file
+- **File Type**: Ensure the file is a supported plain-text format (such as `.txt`, `.md`, `.rs`, `.ts`, `.json`). Binary formats (like `.pdf` or scanned images) are not currently OCR-processed or content-indexed.
+- **File Size**: Check if the file exceeds the maximum content indexing limit (default: 2 MB). Files larger than this threshold are indexed by name only.
+
+---
+
+## Performance & Disk Space
+
+### Tantivy index is taking up too much disk space
+If you indexed a large drive and want to reclaim the disk space occupied by the index:
+1. Open **Settings > Index Settings**.
+2. Click **Clear Index** to remove all index files.
+3. Reconfigure included locations to only index your primary document folders (e.g. `%USERPROFILE%`), then click **Update Index**.

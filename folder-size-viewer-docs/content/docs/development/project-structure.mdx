@@ -1,0 +1,69 @@
+---
+title: Project Structure
+description: Organization of the Folder Size Viewer Tauri v2 repository, backend modules, and frontend components.
+---
+
+Folder Size Viewer is organized as a unified monorepo separating the Rust native backend, React UI, and documentation site.
+
+## Codebase Tree
+
+<Files>
+  <Folder name="src" defaultOpen>
+    <Folder name="components">
+      <File name="FolderTree.tsx" />
+      <File name="CardsView.tsx" />
+      <File name="ChartsView.tsx" />
+      <File name="SearchModal.tsx" />
+      <File name="SettingsModal.tsx" />
+      <File name="Toolbar.tsx" />
+      <File name="Breadcrumbs.tsx" />
+    </Folder>
+    <Folder name="hooks">
+      <File name="useScanner.ts" />
+      <File name="useSearch.ts" />
+      <File name="useShortcuts.ts" />
+    </Folder>
+    <Folder name="lib">
+      <File name="formatters.ts" />
+      <File name="file-categories.ts" />
+      <File name="utils.ts" />
+    </Folder>
+    <File name="App.tsx" />
+    <File name="main.tsx" />
+    <File name="index.css" />
+  </Folder>
+  <Folder name="src-tauri" defaultOpen>
+    <Folder name="src">
+      <Folder name="scanner">
+        <File name="mod.rs" />
+        <File name="walker.rs" />
+        <File name="filter.rs" />
+      </Folder>
+      <Folder name="search">
+        <File name="mod.rs" />
+        <File name="index.rs" />
+        <File name="query.rs" />
+      </Folder>
+      <File name="commands.rs" />
+      <File name="lib.rs" />
+      <File name="main.rs" />
+    </Folder>
+    <File name="Cargo.toml" />
+    <File name="tauri.conf.json" />
+  </Folder>
+  <Folder name="folder-size-viewer-docs">
+    <Folder name="app" />
+    <Folder name="content" />
+    <Folder name="public" />
+    <File name="package.json" />
+  </Folder>
+  <File name="package.json" />
+  <File name="tsconfig.json" />
+  <File name="vite.config.ts" />
+</Files>
+
+## Directory Breakdown
+
+- **`src/`**: The React + TypeScript frontend application. Built using Vite, Tailwind CSS, Lucide icons, and Material Icon Theme indicators.
+- **`src-tauri/`**: The native Rust application. Contains the Tauri v2 configuration, multithreaded directory walker (`src/scanner/`), and embedded Tantivy search indexer (`src/search/`).
+- **`folder-size-viewer-docs/`**: The documentation website built with Next.js (App Router), Fumadocs, and Tailwind CSS v4.

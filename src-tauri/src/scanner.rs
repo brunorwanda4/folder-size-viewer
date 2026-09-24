@@ -87,6 +87,7 @@ pub fn is_reparse_point_or_symlink(meta: &fs::Metadata) -> bool {
 
 /// Computes the recursive size, file count, and category breakdown for a directory.
 /// Uses an iterative stack walk, skips reparse points/symlinks, and ignores permission errors.
+/// Uses cached `entry.metadata()` to eliminate redundant Windows NT kernel syscalls per file.
 fn compute_folder_recursive(
     folder_path: &Path,
     cancel_token: &Arc<AtomicBool>,
@@ -130,10 +131,9 @@ fn compute_folder_recursive(
                 }
             };
 
-            let item_path = entry.path();
-
-            // Use symlink_metadata to avoid following symlinks or junctions
-            let meta = match fs::symlink_metadata(&item_path) {
+            // Use entry.metadata() directly: on Windows this uses the cached
+            // WIN32_FIND_DATA from FindNextFileW without an extra CreateFileW syscall!
+            let meta = match entry.metadata() {
                 Ok(m) => m,
                 Err(_) => {
                     skipped_count.fetch_add(1, Ordering::Relaxed);
@@ -147,14 +147,19 @@ fn compute_folder_recursive(
             }
 
             if meta.is_dir() {
-                stack.push(item_path);
+                stack.push(entry.path());
             } else {
-                // Logical file size: Using metadata.len() as required.
+                // Logical file size
                 let size = meta.len();
                 total_size += size;
                 total_files += 1;
 
-                let ext = item_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+                let file_name = entry.file_name();
+                let file_name_str = file_name.to_string_lossy();
+                let ext = Path::new(&*file_name_str)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("");
                 let cat = classify(ext);
                 let stat = categories.entry(cat.as_str().to_string()).or_default();
                 stat.bytes += size;
@@ -408,22 +413,27 @@ mod tests {
 
     #[test]
     fn test_recursive_folder_size_with_categories() {
-        let temp_dir = std::env::temp_dir().join(format!("fsv_test_{}", std::process::id()));
-        let _ = fs::remove_dir_all(&temp_dir);
-        fs::create_dir_all(&temp_dir).unwrap();
+        let dir_holder = tempfile::tempdir().unwrap();
+        let temp_dir = dir_holder.path().to_path_buf();
 
         let sub_dir = temp_dir.join("subdir");
         fs::create_dir_all(&sub_dir).unwrap();
 
         // Create file 1 (100 bytes txt)
         let file1_path = temp_dir.join("file1.txt");
-        let mut f1 = File::create(&file1_path).unwrap();
-        f1.write_all(&vec![b'A'; 100]).unwrap();
+        {
+            let mut f1 = File::create(&file1_path).unwrap();
+            f1.write_all(&vec![b'A'; 100]).unwrap();
+            f1.sync_all().unwrap();
+        }
 
         // Create file 2 in sub_dir (250 bytes png)
         let file2_path = sub_dir.join("file2.png");
-        let mut f2 = File::create(&file2_path).unwrap();
-        f2.write_all(&vec![b'B'; 250]).unwrap();
+        {
+            let mut f2 = File::create(&file2_path).unwrap();
+            f2.write_all(&vec![b'B'; 250]).unwrap();
+            f2.sync_all().unwrap();
+        }
 
         let cancel_token = Arc::new(AtomicBool::new(false));
         let skipped_count = AtomicU64::new(0);
@@ -439,8 +449,5 @@ mod tests {
         assert_eq!(categories.get("Documents").unwrap().files, 1);
         assert_eq!(categories.get("Images").unwrap().bytes, 250);
         assert_eq!(categories.get("Images").unwrap().files, 1);
-
-        // Clean up
-        let _ = fs::remove_dir_all(&temp_dir);
     }
 }

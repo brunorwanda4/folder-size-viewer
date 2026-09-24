@@ -1,0 +1,56 @@
+---
+title: Index Settings
+description: Configure included locations, exclusion lists, file size limits, and index maintenance.
+---
+
+The Search Index Settings dialog gives you complete control over what directories are crawled, what is ignored, and how much disk space the index is allowed to consume.
+
+Access the settings panel by clicking the gear icon in the search modal or pressing <kbd>Ctrl + ,</kbd>.
+
+<Screenshot
+  src="/images/settings.png"
+  alt="Index Settings"
+  caption="Configuring indexed paths, exclusions, and file size limits in Search Settings"
+/>
+
+## Included Locations
+
+You can customize which drives and directories are monitored:
+
+- **Add Location**: Click **Add Directory** to browse for any local drive or custom project root.
+- **Content Toggle**: For each location, you can choose whether to index **Names Only** or **Names and Text Contents**.
+- **Remove Location**: Click the trash icon next to any path to remove it from future index updates.
+
+---
+
+## Default Exclusions
+
+Folder Size Viewer automatically excludes paths that contain high-churn temporary files, version control blobs, or OS system internals:
+
+- `node_modules` (NPM dependency trees)
+- `.git` (Git packfiles and commit objects)
+- `target` (Rust Cargo build outputs)
+- `$Recycle.Bin` (Windows recycle bin)
+- `System Volume Information` (Windows restore points and volume shadows)
+- `AppData\Local\Temp` (Temporary cache files)
+- `.venv` / `__pycache__` (Python virtual environments and bytecode)
+
+You can add custom directory names or glob patterns to the exclusion list at any time.
+
+---
+
+## Content File Size Limit
+
+- **Default Value**: `2 MB`
+- Files exceeding this size will have their names indexed, but their contents will be skipped to protect system memory and disk footprint.
+- You can adjust this slider between `256 KB` and `10 MB`.
+
+---
+
+## Index Maintenance Actions
+
+Three maintenance buttons allow you to manage the index lifecycle:
+
+1. **Update Index**: Scans your configured locations for newly created or modified files since the last indexing session. Fast and lightweight.
+2. **Rebuild Index**: Wipes the existing index and performs a complete fresh crawl from scratch. Recommended if you changed extensive exclusion rules.
+3. **Clear Index**: Deletes the Tantivy index directory completely and releases all disk space.

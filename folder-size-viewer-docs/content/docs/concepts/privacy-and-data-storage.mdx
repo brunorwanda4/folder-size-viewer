@@ -1,0 +1,36 @@
+---
+title: Privacy and Data Storage
+description: Zero telemetry, zero cloud tracking, and local file storage paths.
+---
+
+Folder Size Viewer is built from the ground up as a privacy-respecting, local-first utility.
+
+## The 100% Offline Promise
+
+- **Zero Network Traffic**: The app never connects to the internet. There are no phone-home mechanisms, license checks, or remote API calls.
+- **Zero Analytics & Telemetry**: We do not track which folders you scan, what files you search for, what hardware you use, or how often you launch the app.
+- **Offline Reliability**: The application functions with full fidelity in air-gapped environments and computers with no internet connectivity.
+
+---
+
+## Where Data Is Stored
+
+Folder Size Viewer writes data only to standard Windows application storage folders:
+
+| Data Type | Disk Location | Description |
+| :--- | :--- | :--- |
+| **Settings & Preferences** | `%LOCALAPPDATA%\folder-size-viewer\settings.json` | Stores your UI preferences (Table vs Cards), custom search directories, and exclusion rules. |
+| **Tantivy Search Index** | `%LOCALAPPDATA%\folder-size-viewer\tantivy-index\` | Contains the local binary inverted search index used for instant name and content lookups. |
+
+---
+
+## Complete Removal & Cleanup
+
+If you ever decide to uninstall Folder Size Viewer:
+
+1. Uninstall the application using Windows **Settings > Apps > Installed apps**.
+2. To remove all cached search indexes and settings, delete the application data directory:
+   ```powershell
+   Remove-Item -Recurse -Force "$env:LOCALAPPDATA\folder-size-viewer"
+   ```
+No registry entries, background daemons, or lingering services are left behind.

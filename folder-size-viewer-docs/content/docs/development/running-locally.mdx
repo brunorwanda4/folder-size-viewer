@@ -1,0 +1,42 @@
+---
+title: Running Locally
+description: How to start the local development environment with hot reloading.
+---
+
+Developing Folder Size Viewer requires running both the Vite frontend development server and the Tauri Rust process concurrently.
+
+## Setup Instructions
+
+<Steps>
+  <Step>
+    ### Install System Prerequisites
+    Ensure you have Rust, Node.js/Bun, and the Visual Studio C++ Build Tools installed. Refer to the [Installation Guide](/docs/getting-started/installation) if needed.
+  </Step>
+
+  <Step>
+    ### Clone and Install Dependencies
+    ```bash
+    git clone https://github.com/<your-username>/folder-size-viewer.git
+    cd folder-size-viewer
+    bun install
+    ```
+  </Step>
+
+  <Step>
+    ### Start the Development Server
+    Execute the Tauri dev command:
+    ```bash
+    bun run tauri dev
+    ```
+    This command:
+    - Launches the Vite dev server with Hot Module Replacement (HMR) for React components.
+    - Compiles the Rust backend with debug symbols.
+    - Spawns the native desktop window connected directly to the local dev server.
+  </Step>
+</Steps>
+
+## Development Workflow Tips
+
+- **Frontend Edits**: Modifying files inside `src/` triggers instant HMR without recompiling Rust.
+- **Backend Edits**: Modifying files inside `src-tauri/` automatically triggers Cargo to recompile the native binary and restart the window.
+- **Inspect Element**: In development mode, right-click anywhere in the app and select **Inspect Element** to open the WebView2 developer tools console.
