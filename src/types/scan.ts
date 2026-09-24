@@ -27,6 +27,44 @@ export type ScanEvent =
   | { type: "cancelled" }
   | { type: "error"; message: string };
 
+export type DeleteProgressEvent =
+  | {
+      type: "progress";
+      deletedFiles: number;
+      deletedBytes: number;
+      filesLeft: number;
+      bytesLeft: number;
+      percentage: number;
+      currentName: string;
+      elapsedSeconds: number;
+      estimatedSecondsLeft: number | null;
+    }
+  | {
+      type: "finished";
+      totalFiles: number;
+      totalBytes: number;
+      elapsedSeconds: number;
+    };
+
+export interface DeletionTask {
+  id: string;
+  name: string;
+  path: string;
+  isDir: boolean;
+  totalSize: number;
+  totalFiles: number;
+  status: "deleting" | "done" | "error";
+  percentage: number;
+  filesLeft: number;
+  bytesLeft: number;
+  elapsedSeconds: number;
+  estimatedSecondsLeft: number | null;
+  currentName: string;
+  error?: string;
+  isMinimized: boolean;
+  startTime: number;
+}
+
 export interface ScanResult {
   path: string;
   totalSize: number;

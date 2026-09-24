@@ -1,11 +1,15 @@
 import { useState, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import {
   Search,
   AlertTriangle,
   Loader2,
   AlertCircle,
   Trash2,
+  Timer,
+  Clock,
+  HardDrive,
+  FileText,
+  Minimize2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -34,12 +38,14 @@ import {
   SortOrder,
   ViewMode,
 } from "@/types/scan";
-import { formatBytes, formatNumber } from "@/lib/format";
+import { formatBytes, formatNumber, formatSecondsLeft } from "@/lib/format";
+import { useDeletion } from "@/context/DeletionContext";
 import { ResultsTable as TableComponent } from "./results-table";
 import { ResultsCards } from "./results-cards";
 import { ViewToggle } from "./view-toggle";
 import { SortControl } from "./sort-control";
 import { FileIcon } from "./file-icon";
+import { invoke } from "@tauri-apps/api/core";
 
 interface ResultsTableProps {
   entries: FolderChildEntry[];
@@ -58,6 +64,16 @@ export function ResultsTable({
   onDrillDown,
   onItemDeleted,
 }: ResultsTableProps) {
+  // Global deletion manager
+  const {
+    pendingCandidate,
+    activeModalTask,
+    requestDelete,
+    cancelPendingDelete,
+    confirmDelete,
+    minimizeTask,
+  } = useDeletion();
+
   // View mode (table vs cards) persisted in localStorage
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
@@ -81,12 +97,6 @@ export function ResultsTable({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortField, setSortField] = useState<SortField>("size");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
-
-  // Deletion modal state
-  const [itemToDelete, setItemToDelete] = useState<FolderChildEntry | null>(
-    null
-  );
-  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const isScanning = scanState === "scanning";
   const totalSize = summary?.totalSize ?? 0;
@@ -176,38 +186,11 @@ export function ResultsTable({
 
   const handleDeleteClick = (e: React.MouseEvent, entry: FolderChildEntry) => {
     e.stopPropagation();
-    setItemToDelete(entry);
+    requestDelete(entry);
   };
 
   const handleConfirmDelete = async () => {
-    if (!itemToDelete) return;
-    setIsDeleting(true);
-    try {
-      await invoke("delete_item", { path: itemToDelete.path });
-      toast.success(
-        `${itemToDelete.isDir ? "Folder" : "File"} deleted successfully`,
-        {
-          description: `"${itemToDelete.name}" was permanently removed.`,
-        }
-      );
-      onItemDeleted?.(itemToDelete.path, itemToDelete.sizeBytes);
-      setItemToDelete(null);
-    } catch (err: unknown) {
-      const errorMsg =
-        typeof err === "string"
-          ? err
-          : err instanceof Error
-          ? err.message
-          : String(err);
-      toast.error(
-        `Failed to delete ${itemToDelete.isDir ? "folder" : "file"}`,
-        {
-          description: errorMsg,
-        }
-      );
-    } finally {
-      setIsDeleting(false);
-    }
+    await confirmDelete(onItemDeleted);
   };
 
   // Progress percentage during active scan
@@ -218,6 +201,28 @@ export function ResultsTable({
           Math.round((entries.length / totalChildrenExpected) * 100)
         )
       : 0;
+
+  // Active item in the dialog (either candidate pending confirmation or active task deleting)
+  const isDialogActive = !!pendingCandidate || !!activeModalTask;
+  const isDeletingModal = !!activeModalTask;
+
+  const activeItem = pendingCandidate
+    ? {
+        name: pendingCandidate.name,
+        path: pendingCandidate.path,
+        isDir: pendingCandidate.isDir,
+        sizeBytes: pendingCandidate.sizeBytes,
+        fileCount: pendingCandidate.fileCount,
+      }
+    : activeModalTask
+    ? {
+        name: activeModalTask.name,
+        path: activeModalTask.path,
+        isDir: activeModalTask.isDir,
+        sizeBytes: activeModalTask.totalSize,
+        fileCount: activeModalTask.totalFiles,
+      }
+    : null;
 
   return (
     <div className="flex flex-col flex-1 min-h-[480px] lg:min-h-[520px] border border-border/70 rounded-xl bg-card/60 backdrop-blur-sm shadow-sm overflow-hidden">
@@ -257,7 +262,7 @@ export function ResultsTable({
             </ToggleGroupItem>
           </ToggleGroup>
 
-          {/* Shared Sort control */}
+          {/* Sort Control */}
           <SortControl
             sortField={sortField}
             sortOrder={sortOrder}
@@ -265,35 +270,21 @@ export function ResultsTable({
             onSortOrderToggle={handleToggleSortDirection}
           />
 
-          {/* Table / Cards view toggle */}
-          <ViewToggle
-            viewMode={viewMode}
-            onViewModeChange={handleViewModeChange}
-          />
-
-          {/* Item Count */}
-          <span className="text-xs text-muted-foreground font-mono pl-1 hidden sm:inline-block">
-            {displayedEntries.length}{" "}
-            {displayedEntries.length === 1 ? "item" : "items"}
-          </span>
+          {/* View Toggle */}
+          <ViewToggle viewMode={viewMode} onViewModeChange={handleViewModeChange} />
         </div>
       </div>
 
-      {/* Live Scanning Progress Header Bar */}
+      {/* Progress Bar (during active scan) */}
       {isScanning && (
-        <div className="bg-primary/5 px-4 py-2 border-b border-primary/20 flex flex-col gap-1.5 animate-fadeIn">
-          <div className="flex items-center justify-between text-xs text-primary font-medium">
-            <span className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-              </span>
-              Scanning in progress ({entries.length} of{" "}
-              {totalChildrenExpected || "..."} items processed)
+        <div className="px-4 py-2 border-b border-border/40 bg-muted/30">
+          <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+            <span>Scanning directory contents...</span>
+            <span className="font-medium text-foreground">
+              {progressPercent}%
             </span>
-            <span className="font-mono">{progressPercent}%</span>
           </div>
-          <Progress value={progressPercent} className="h-1.5" />
+          <Progress value={progressPercent} className="h-1.5 w-full" />
         </div>
       )}
 
@@ -329,68 +320,192 @@ export function ResultsTable({
         </div>
       )}
 
-      {/* Confirmation Dialog to Prevent Mistakes */}
+      {/* Confirmation & Active Deletion Dialog */}
       <AlertDialog
-        open={!!itemToDelete}
+        open={isDialogActive}
         onOpenChange={(open) => {
-          if (!open && !isDeleting) {
-            setItemToDelete(null);
+          if (!open) {
+            if (activeModalTask) {
+              // Minimize running deletion to background
+              minimizeTask(activeModalTask.id);
+            } else {
+              cancelPendingDelete();
+            }
           }
         }}
       >
-        <AlertDialogContent className="sm:max-w-md">
+        <AlertDialogContent className="sm:max-w-lg">
           <AlertDialogHeader>
             <div className="flex items-center gap-3 mb-1">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-destructive/10 text-destructive shrink-0">
-                <AlertTriangle className="w-5 h-5" />
+              <div
+                className={`flex items-center justify-center w-10 h-10 rounded-full shrink-0 ${
+                  isDeletingModal
+                    ? "bg-destructive/15 text-destructive animate-pulse"
+                    : "bg-destructive/10 text-destructive"
+                }`}
+              >
+                {isDeletingModal ? (
+                  <Trash2 className="w-5 h-5 animate-pulse" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5" />
+                )}
               </div>
-              <div>
-                <AlertDialogTitle className="text-base sm:text-lg">
-                  Delete {itemToDelete?.isDir ? "Folder" : "File"}?
+              <div className="flex-1 min-w-0">
+                <AlertDialogTitle className="text-base sm:text-lg flex items-center justify-between">
+                  <span>
+                    {isDeletingModal
+                      ? `Deleting ${activeItem?.isDir ? "Folder" : "File"}...`
+                      : `Delete ${activeItem?.isDir ? "Folder" : "File"}?`}
+                  </span>
+                  {isDeletingModal && activeModalTask && (
+                    <span className="font-mono text-sm font-bold text-destructive">
+                      {activeModalTask.percentage}%
+                    </span>
+                  )}
                 </AlertDialogTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Please verify this is not a mistake
+                  {isDeletingModal
+                    ? "Deletion in progress. You can minimize to delete in background."
+                    : "Please verify this is not a mistake"}
                 </p>
               </div>
             </div>
 
             <AlertDialogDescription asChild>
               <div className="space-y-3 pt-2 text-foreground">
-                <p className="text-sm">
-                  Are you sure you want to delete this{" "}
-                  <span className="font-semibold text-foreground">
-                    {itemToDelete?.isDir ? "folder" : "file"}
-                  </span>
-                  ? This action is permanent and cannot be undone.
-                </p>
+                {!isDeletingModal ? (
+                  <p className="text-sm">
+                    Are you sure you want to delete this{" "}
+                    <span className="font-semibold text-foreground">
+                      {activeItem?.isDir ? "folder" : "file"}
+                    </span>
+                    ? This action is permanent and cannot be undone.
+                  </p>
+                ) : (
+                  activeModalTask && (
+                    <div className="space-y-3 rounded-lg border border-border/80 bg-muted/30 p-3.5">
+                      {/* Progress Bar & Percentage */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium text-foreground flex items-center gap-1.5">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-destructive" />
+                            Deletion Progress
+                          </span>
+                          <span className="font-mono font-bold text-destructive">
+                            {activeModalTask.percentage}%
+                          </span>
+                        </div>
+                        <Progress
+                          value={activeModalTask.percentage}
+                          className="h-2.5 w-full bg-secondary"
+                        />
+                      </div>
 
-                {itemToDelete && (
+                      {/* Stats Grid: Time Taken, Time Left, Storage Left, Files Left */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        {/* Time Taken in seconds */}
+                        <div className="flex items-center gap-2 p-2 rounded-md bg-background/80 border border-border/50">
+                          <div className="p-1.5 rounded-md bg-blue-500/10 text-blue-500 shrink-0">
+                            <Timer className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                              Time Taken
+                            </p>
+                            <p className="text-xs font-mono font-bold text-foreground truncate">
+                              {activeModalTask.elapsedSeconds.toFixed(1)}s
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Time Left (ETA) */}
+                        <div className="flex items-center gap-2 p-2 rounded-md bg-background/80 border border-border/50">
+                          <div className="p-1.5 rounded-md bg-amber-500/10 text-amber-500 shrink-0">
+                            <Clock className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                              Time Left
+                            </p>
+                            <p className="text-xs font-mono font-bold text-foreground truncate">
+                              {formatSecondsLeft(
+                                activeModalTask.estimatedSecondsLeft
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Storage Left */}
+                        <div className="flex items-center gap-2 p-2 rounded-md bg-background/80 border border-border/50">
+                          <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-500 shrink-0">
+                            <HardDrive className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                              Storage Left
+                            </p>
+                            <p className="text-xs font-mono font-bold text-foreground truncate">
+                              {formatBytes(activeModalTask.bytesLeft)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Files Left */}
+                        <div className="flex items-center gap-2 p-2 rounded-md bg-background/80 border border-border/50">
+                          <div className="p-1.5 rounded-md bg-purple-500/10 text-purple-500 shrink-0">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                              Files Left
+                            </p>
+                            <p className="text-xs font-mono font-bold text-foreground truncate">
+                              {formatNumber(activeModalTask.filesLeft)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Current File Activity */}
+                      {activeModalTask.currentName && (
+                        <div className="text-[11px] text-muted-foreground font-mono truncate px-2 py-1 rounded bg-background/50 border border-border/40">
+                          <span className="text-muted-foreground/70">Deleting: </span>
+                          <span className="text-foreground">
+                            {activeModalTask.currentName}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
+
+                {activeItem && (
                   <div className="rounded-lg border border-border/80 bg-muted/40 p-3 space-y-2 text-xs">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 font-medium truncate">
                         <FileIcon
-                          name={itemToDelete.name}
-                          isDir={itemToDelete.isDir}
+                          name={activeItem.name}
+                          isDir={activeItem.isDir}
                           size={18}
                         />
                         <span className="truncate font-semibold text-foreground">
-                          {itemToDelete.name}
+                          {activeItem.name}
                         </span>
                       </div>
                       <Badge variant="outline" className="shrink-0 text-[10px]">
-                        {formatBytes(itemToDelete.sizeBytes)}
+                        {formatBytes(activeItem.sizeBytes)}
                       </Badge>
                     </div>
 
                     <div className="text-muted-foreground font-mono text-[11px] break-all bg-background/60 p-2 rounded border border-border/50 max-h-20 overflow-y-auto select-text">
-                      {itemToDelete.path}
+                      {activeItem.path}
                     </div>
 
-                    {itemToDelete.isDir && itemToDelete.fileCount > 0 && (
+                    {activeItem.isDir && activeItem.fileCount > 0 && (
                       <div className="text-muted-foreground text-[11px]">
                         Contains{" "}
                         <span className="font-semibold text-foreground">
-                          {formatNumber(itemToDelete.fileCount)}
+                          {formatNumber(activeItem.fileCount)}
                         </span>{" "}
                         files
                       </div>
@@ -398,36 +513,57 @@ export function ResultsTable({
                   </div>
                 )}
 
-                <div className="p-2.5 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>
-                    Warning: This item will be permanently removed from disk.
-                  </span>
-                </div>
+                {!isDeletingModal && (
+                  <div className="p-2.5 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>
+                      Warning: This item will be permanently removed from disk.
+                    </span>
+                  </div>
+                )}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <AlertDialogFooter className="gap-2 sm:gap-0 mt-2">
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmDelete}
-              disabled={isDeleting}
-              className="gap-1.5"
-            >
-              {isDeleting ? (
-                <>
+          <AlertDialogFooter className="gap-2 sm:gap-2 mt-2 flex flex-col sm:flex-row justify-between items-stretch sm:items-center">
+            {isDeletingModal ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    activeModalTask && minimizeTask(activeModalTask.id)
+                  }
+                  className="gap-1.5 order-2 sm:order-1"
+                >
+                  <Minimize2 className="w-4 h-4" />
+                  <span>Minimize to Background</span>
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled
+                  className="gap-1.5 min-w-[130px] order-1 sm:order-2"
+                >
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Deleting...</span>
-                </>
-              ) : (
-                <>
+                  <span>Deleting ({activeModalTask?.percentage}%)...</span>
+                </Button>
+              </>
+            ) : (
+              <div className="flex items-center justify-end gap-2 w-full">
+                <AlertDialogCancel onClick={cancelPendingDelete}>
+                  Cancel
+                </AlertDialogCancel>
+                <Button
+                  variant="destructive"
+                  onClick={handleConfirmDelete}
+                  className="gap-1.5 min-w-[130px]"
+                >
                   <Trash2 className="w-4 h-4" />
                   <span>Yes, Delete</span>
-                </>
-              )}
-            </Button>
+                </Button>
+              </div>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

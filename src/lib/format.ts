@@ -52,3 +52,28 @@ export function formatDuration(ms: number): string {
   }
   return `${(ms / 1000).toFixed(2)} s`;
 }
+
+/**
+ * Formats estimated seconds remaining into a clean ETA string (e.g., "12s", "1m 30s").
+ */
+export function formatSecondsLeft(
+  seconds: number | null | undefined
+): string {
+  if (
+    seconds === null ||
+    seconds === undefined ||
+    !isFinite(seconds) ||
+    isNaN(seconds)
+  ) {
+    return "Estimating...";
+  }
+  if (seconds <= 0.5) {
+    return "< 1s";
+  }
+  if (seconds < 60) {
+    return `${Math.ceil(seconds)}s`;
+  }
+  const mins = Math.floor(seconds / 60);
+  const remainingSecs = Math.round(seconds % 60);
+  return `${mins}m ${remainingSecs}s`;
+}

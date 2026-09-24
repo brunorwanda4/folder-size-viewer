@@ -208,6 +208,59 @@ export async function notifyScanError(
   }
 }
 
+export interface DeleteCompleteDetails {
+  name: string;
+  path: string;
+  isDir: boolean;
+  sizeBytes: number;
+  elapsedSeconds: number;
+}
+
+/**
+ * Triggers a native Windows desktop notification when a background deletion finishes.
+ */
+export async function notifyDeleteComplete(
+  details: DeleteCompleteDetails,
+  force: boolean = false
+): Promise<boolean> {
+  const mode = getNotificationMode();
+  if (mode === "never" && !force) return false;
+
+  // If set to "inactive-only", only notify if user is outside the app, unless force is true
+  if (mode === "inactive-only" && !force) {
+    const active = await isAppActive();
+    if (active) return false;
+  }
+
+  const hasPermission = await ensureNotificationPermission();
+  if (!hasPermission) return false;
+
+  const itemType = details.isDir ? "Folder" : "File";
+  const sizeFormatted = formatBytes(details.sizeBytes);
+  const timeFormatted = `${details.elapsedSeconds.toFixed(1)}s`;
+
+  try {
+    sendNotification({
+      title: `${itemType} Deleted • ${details.name}`,
+      body: `"${details.name}" (${sizeFormatted}) was permanently deleted in ${timeFormatted}.`,
+    });
+
+    if (isTauri()) {
+      try {
+        const win = getCurrentWindow();
+        await win.requestUserAttention(UserAttentionType.Informational);
+      } catch {
+        // Ignore
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.warn("Failed to dispatch delete notification:", err);
+    return false;
+  }
+}
+
 /**
  * Sends a test notification to verify Windows notifications are configured properly.
  */
@@ -218,7 +271,7 @@ export async function sendTestNotification(): Promise<boolean> {
   try {
     sendNotification({
       title: "Folder Size Viewer",
-      body: "Windows notifications are active! You will be alerted when background scans finish.",
+      body: "Windows notifications are active! You will be alerted when background scans or deletions finish.",
     });
 
     if (isTauri()) {

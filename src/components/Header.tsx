@@ -1,8 +1,14 @@
 import { ThemeToggle } from "./ThemeToggle";
 import { NotificationSettings } from "./NotificationSettings";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Settings } from "lucide-react";
 
-export function Header() {
+interface HeaderProps {
+  onOpenSearchSettings?: () => void;
+}
+
+export function Header({ onOpenSearchSettings }: HeaderProps) {
   return (
     <header className="flex items-center justify-between pb-4 border-b border-border/40 select-none">
       <div className="flex items-center gap-3">
@@ -28,6 +34,17 @@ export function Header() {
         </div>
       </div>
       <div className="flex items-center gap-2">
+        {onOpenSearchSettings && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenSearchSettings}
+            className="h-9 w-9 text-muted-foreground hover:text-foreground"
+            title="Search & Index Settings"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+        )}
         <NotificationSettings />
         <ThemeToggle />
       </div>
