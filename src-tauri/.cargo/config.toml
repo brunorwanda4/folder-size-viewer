@@ -1,0 +1,9 @@
+[build]
+target-dir = "C:/Users/rbhap/.cargo/target/folder-size-viewer"
+rustflags = ["-C", "linker=C:\\Users\\rbhap\\.cargo\\bin\\link-sign.cmd"]
+
+[target.x86_64-pc-windows-msvc]
+linker = "C:\\Users\\rbhap\\.cargo\\bin\\link-sign.cmd"
+
+[host]
+linker = "C:\\Users\\rbhap\\.cargo\\bin\\link-sign.cmd"
