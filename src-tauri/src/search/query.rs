@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 use tantivy::collector::{Count, TopDocs};
 use tantivy::query::{BooleanQuery, Occur, Query, QueryParser, TermQuery};
@@ -83,6 +83,8 @@ pub fn execute_search(
     searcher: &Searcher,
     fields: &SearchFields,
     params: SearchParams,
+    roots: &[String],
+    exclusions: &[String],
     content_extensions: &[String],
     max_content_size_mb: u64,
 ) -> Result<SearchResult, String> {
@@ -183,7 +185,7 @@ pub fn execute_search(
         Box::new(BooleanQuery::new(clauses))
     };
 
-    // 3. Search top docs and total count
+    // 3. Search top docs and total count from Tantivy index
     let top_docs_collector = TopDocs::with_limit(limit)
         .and_offset(offset)
         .order_by_score();
@@ -280,11 +282,252 @@ pub fn execute_search(
         });
     }
 
+    // 5. Live filesystem search fallback & complement:
+    // If Tantivy returned fewer hits than limit (e.g. index is empty, still building, or file is not indexed yet),
+    // automatically search the filesystem directly so the user immediately finds their files.
+    if hits.len() < limit {
+        let mut existing_paths: std::collections::HashSet<String> = hits
+            .iter()
+            .map(|h| {
+                #[cfg(windows)]
+                {
+                    h.path.to_lowercase()
+                }
+                #[cfg(not(windows))]
+                {
+                    h.path.clone()
+                }
+            })
+            .collect();
+
+        let remaining_limit = limit - hits.len();
+        let live_hits = live_filesystem_search(
+            &params,
+            roots,
+            exclusions,
+            &mut existing_paths,
+            remaining_limit,
+            std::time::Duration::from_millis(1500),
+        );
+        hits.extend(live_hits);
+    }
+
+    let total = (total_count as usize).max(hits.len());
+
     Ok(SearchResult {
         hits,
-        total: total_count,
+        total,
         took_ms: start_time.elapsed().as_millis() as u64,
     })
+}
+
+/// High-performance live filesystem search that scans directory trees for files matching search terms.
+/// Excludes build artifacts, version control dirs, and system folders immediately at directory boundaries.
+pub fn live_filesystem_search(
+    params: &SearchParams,
+    configured_roots: &[String],
+    exclusions: &[String],
+    existing_paths: &mut std::collections::HashSet<String>,
+    limit: usize,
+    max_duration: std::time::Duration,
+) -> Vec<SearchHit> {
+    if limit == 0 {
+        return Vec::new();
+    }
+
+    let start_time = Instant::now();
+    let query_str = params.query.trim();
+    let query_terms = extract_search_terms(query_str);
+    if query_terms.is_empty() {
+        return Vec::new();
+    }
+
+    // Determine target search roots
+    let search_roots: Vec<PathBuf> = if params.scope == "folder" {
+        if let Some(ref folder) = params.current_path {
+            let p = PathBuf::from(folder);
+            if p.is_dir() {
+                vec![p]
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        }
+    } else {
+        let mut r_paths = Vec::new();
+        for r in configured_roots {
+            let p = PathBuf::from(r);
+            if p.is_dir() && !r_paths.contains(&p) {
+                r_paths.push(p);
+            }
+        }
+        if r_paths.is_empty() {
+            if let Some(home) = dirs::home_dir() {
+                r_paths.push(home);
+            }
+        }
+        r_paths
+    };
+
+    if search_roots.is_empty() {
+        return Vec::new();
+    }
+
+    // Exclusions in lowercase
+    let exclusions_lower: Vec<String> = exclusions.iter().map(|e| e.to_lowercase()).collect();
+
+    let filter_type = params.filter_type.as_deref().unwrap_or("all");
+    let filter_category = params.filter_category.as_deref().unwrap_or("all");
+
+    // Optional ext: filter
+    let required_ext = query_str
+        .split_whitespace()
+        .find_map(|w| w.strip_prefix("ext:"))
+        .map(|e| e.trim_matches(['"', '\'']).to_lowercase());
+
+    let mut live_hits = Vec::new();
+
+    for root_dir in search_roots {
+        if start_time.elapsed() >= max_duration || live_hits.len() >= limit {
+            break;
+        }
+
+        let exclusions_for_filter = exclusions_lower.clone();
+        let walker = jwalk::WalkDirGeneric::<((), bool)>::new(&root_dir)
+            .skip_hidden(false)
+            .follow_links(false)
+            .process_read_dir(move |_depth, _path, _state, children| {
+                children.retain(|child_res| {
+                    if let Ok(child) = child_res {
+                        if child.file_type.is_dir() {
+                            let name_lower = child.file_name.to_string_lossy().to_lowercase();
+                            if exclusions_for_filter.iter().any(|ex| {
+                                name_lower == *ex
+                                    || name_lower.starts_with(ex)
+                                    || ex.ends_with(&name_lower)
+                            }) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                });
+            });
+
+        for entry_res in walker {
+            if start_time.elapsed() >= max_duration || live_hits.len() >= limit {
+                break;
+            }
+
+            let entry = match entry_res {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            let path = entry.path();
+            let path_str = path.to_string_lossy().to_string();
+
+            #[cfg(windows)]
+            let key = path_str.to_lowercase();
+            #[cfg(not(windows))]
+            let key = path_str.clone();
+
+            if existing_paths.contains(&key) {
+                continue;
+            }
+
+            let is_dir = entry.file_type.is_dir();
+
+            // Type filter
+            match filter_type {
+                "files" if is_dir => continue,
+                "folders" if !is_dir => continue,
+                _ => {}
+            }
+
+            // Exclusions path check
+            let path_lower = path_str.to_lowercase();
+            if exclusions_lower.iter().any(|ex| path_lower.contains(ex)) {
+                continue;
+            }
+
+            let file_name = match path.file_name() {
+                Some(n) => n.to_string_lossy().to_string(),
+                None => continue,
+            };
+
+            let name_lower = file_name.to_lowercase();
+
+            // Check ext: filter if present
+            if let Some(ref req_ext) = required_ext {
+                let actual_ext = path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                if actual_ext != *req_ext {
+                    continue;
+                }
+            }
+
+            // Match checking: All query terms must match in name
+            let matches_name = query_terms.iter().all(|term| name_lower.contains(term));
+
+            if !matches_name {
+                continue;
+            }
+
+            // Category filter
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_string();
+
+            let category = if is_dir {
+                "Folder".to_string()
+            } else {
+                crate::types::classify(&ext).as_str().to_string()
+            };
+
+            if filter_category != "all" && !filter_category.is_empty() {
+                if !category.eq_ignore_ascii_case(filter_category) {
+                    continue;
+                }
+            }
+
+            // Gather metadata
+            let metadata = entry.metadata().ok();
+            let size_bytes = if is_dir {
+                0
+            } else {
+                metadata.as_ref().map(|m| m.len()).unwrap_or(0)
+            };
+
+            let modified = metadata
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as u64);
+
+            let matched_name_ranges = find_matched_ranges(&file_name, &query_terms);
+
+            existing_paths.insert(key);
+
+            live_hits.push(SearchHit {
+                name: file_name,
+                path: path_str,
+                is_dir,
+                size_bytes,
+                modified,
+                category,
+                snippet: None,
+                matched_name_ranges,
+            });
+        }
+    }
+
+    live_hits
 }
 
 /// Extracts search terms (excluding field operators like ext:pdf or dir:) for filename highlighting
@@ -376,5 +619,45 @@ mod tests {
         let q = "ChatGPT Image Sep 24, 2026, 03:26:21 AM ext:png";
         let sanitized = sanitize_query(q);
         assert_eq!(sanitized, "ChatGPT Image Sep 24, 2026, 03 26 21 AM ext:png");
+    }
+
+    #[test]
+    fn test_live_filesystem_search_finds_unindexed_file() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let target_file = temp_dir.path().join("ChatGPT Image Sep 24, 2026, 03_26_21 AM.png");
+        std::fs::write(&target_file, b"sample image content").unwrap();
+
+        let excluded_dir = temp_dir.path().join("node_modules");
+        std::fs::create_dir_all(&excluded_dir).unwrap();
+        std::fs::write(excluded_dir.join("ChatGPT Image Sep 24, 2026.png"), b"ignore").unwrap();
+
+        let params = SearchParams {
+            query: "ChatGPT Image Sep 24, 2026, 03_26_21 AM".to_string(),
+            scope: "computer".to_string(),
+            current_path: None,
+            mode: "names".to_string(),
+            filter_type: None,
+            filter_category: None,
+            limit: Some(10),
+            offset: Some(0),
+        };
+
+        let roots = vec![temp_dir.path().to_string_lossy().to_string()];
+        let exclusions = vec!["node_modules".to_string()];
+        let mut existing = std::collections::HashSet::new();
+
+        let hits = live_filesystem_search(
+            &params,
+            &roots,
+            &exclusions,
+            &mut existing,
+            10,
+            std::time::Duration::from_secs(2),
+        );
+
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].name, "ChatGPT Image Sep 24, 2026, 03_26_21 AM.png");
+        assert_eq!(hits[0].category, "Images");
+        assert!(!hits[0].matched_name_ranges.is_empty());
     }
 }

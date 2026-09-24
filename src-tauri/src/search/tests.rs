@@ -131,6 +131,7 @@ fn test_scoped_search_and_phrase_search() {
     assert!(indexed >= 2);
 
     let searcher = manager.reader.searcher();
+    let roots: Vec<String> = settings.roots.iter().map(|r| r.path.clone()).collect();
 
     // Scoped search: search inside folder_a only
     let scoped_params = SearchParams {
@@ -149,6 +150,8 @@ fn test_scoped_search_and_phrase_search() {
         &searcher,
         &manager.fields,
         scoped_params,
+        &roots,
+        &settings.exclusions,
         &settings.content_extensions,
         settings.max_content_size_mb,
     )
@@ -175,6 +178,8 @@ fn test_scoped_search_and_phrase_search() {
         &searcher,
         &manager.fields,
         phrase_params,
+        &roots,
+        &settings.exclusions,
         &settings.content_extensions,
         settings.max_content_size_mb,
     )
@@ -223,6 +228,7 @@ fn test_chatgpt_image_search() {
     assert!(indexed >= 1);
 
     let searcher = manager.reader.searcher();
+    let roots: Vec<String> = settings.roots.iter().map(|r| r.path.clone()).collect();
 
     // User query: "ChatGPT Image Sep 24, 2026, 03_26_21 AM"
     let params = SearchParams {
@@ -241,6 +247,8 @@ fn test_chatgpt_image_search() {
         &searcher,
         &manager.fields,
         params,
+        &roots,
+        &settings.exclusions,
         &settings.content_extensions,
         settings.max_content_size_mb,
     )
@@ -292,6 +300,7 @@ fn test_incremental_update_add_modify_delete() {
 
     // Verify initial search
     let searcher = manager.reader.searcher();
+    let roots: Vec<String> = settings.roots.iter().map(|r| r.path.clone()).collect();
     let params1 = SearchParams {
         query: "document".to_string(),
         scope: "computer".to_string(),
@@ -307,6 +316,8 @@ fn test_incremental_update_add_modify_delete() {
         &searcher,
         &manager.fields,
         params1,
+        &roots,
+        &settings.exclusions,
         &settings.content_extensions,
         settings.max_content_size_mb,
     )
@@ -354,6 +365,8 @@ fn test_incremental_update_add_modify_delete() {
         &searcher2,
         &manager.fields,
         kw_params,
+        &roots,
+        &settings.exclusions,
         &settings.content_extensions,
         settings.max_content_size_mb,
     )
@@ -391,6 +404,8 @@ fn test_incremental_update_add_modify_delete() {
         &searcher3,
         &manager.fields,
         doc_params,
+        &roots,
+        &settings.exclusions,
         &settings.content_extensions,
         settings.max_content_size_mb,
     )
@@ -413,6 +428,8 @@ fn test_incremental_update_add_modify_delete() {
         &searcher3,
         &manager.fields,
         brand_params,
+        &roots,
+        &settings.exclusions,
         &settings.content_extensions,
         settings.max_content_size_mb,
     )

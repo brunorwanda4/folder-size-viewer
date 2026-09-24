@@ -1,59 +1,54 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { invoke } from "@tauri-apps/api/core";
 import {
-	AlertCircle,
-	Copy,
-	ExternalLink,
-	Folder,
-	FolderSearch,
-	HardDrive,
-	LayoutGrid,
-	LayoutList,
-	Loader2,
-	PieChart,
 	Search,
+	FolderSearch,
 	Settings,
-	Sparkles,
 	X,
+	FileText,
+	Folder,
+	HardDrive,
+	FolderOpen,
+	ExternalLink,
+	Copy,
+	BarChart3,
+	Sparkles,
+	Loader2,
+	LayoutList,
+	LayoutGrid,
+	Calendar,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
-import { FileIcon } from "@/components/file-icon";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { useSearch } from "@/hooks/useSearch";
-import { formatBytes, formatDate } from "@/lib/format";
+import { formatBytes } from "@/lib/format";
 import type { IndexStatus } from "@/types/search";
+import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 
 interface SearchViewProps {
 	currentFolderPath?: string;
+	onAnalyzeFolder?: (path: string) => void;
+	onOpenSettings: () => void;
 	status: IndexStatus | null;
 	onStartIndexing: (rebuild?: boolean) => void;
-	onOpenSettings: () => void;
-	onAnalyzeFolder: (folderPath: string) => void;
-	inputRef?: React.RefObject<HTMLInputElement>;
+	inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export function SearchView({
 	currentFolderPath,
+	onAnalyzeFolder,
+	onOpenSettings,
 	status,
 	onStartIndexing,
-	onOpenSettings,
-	onAnalyzeFolder,
 	inputRef: externalInputRef,
 }: SearchViewProps) {
 	const internalInputRef = useRef<HTMLInputElement>(null);
-	const inputRef = externalInputRef || internalInputRef;
+	const inputRef = (externalInputRef || internalInputRef) as React.RefObject<HTMLInputElement>;
 
+	// Search state from hook
 	const {
 		query,
 		setQuery,
@@ -74,120 +69,153 @@ export function SearchView({
 		clearSearch,
 	} = useSearch(currentFolderPath);
 
+	// Navigation & View state
 	const [selectedIndex, setSelectedIndex] = useState<number>(-1);
 	const [viewMode, setViewMode] = useState<"list" | "cards">(() => {
-		return (
-			(localStorage.getItem("search_view_mode") as "list" | "cards") || "list"
-		);
+		try {
+			const saved = localStorage.getItem("search_view_mode");
+			if (saved === "cards" || saved === "list") return saved;
+		} catch {
+			// ignore localStorage error
+		}
+		return "list";
 	});
 
-	useEffect(() => {
-		localStorage.setItem("search_view_mode", viewMode);
-	}, [viewMode]);
+	const handleSetViewMode = (mode: "list" | "cards") => {
+		setViewMode(mode);
+		try {
+			localStorage.setItem("search_view_mode", mode);
+		} catch {
+			// ignore
+		}
+	};
 
 	const listContainerRef = useRef<HTMLDivElement>(null);
 	const cardsContainerRef = useRef<HTMLDivElement>(null);
 
-	const handleOpen = async (path: string) => {
+	const handleOpen = useCallback(async (path: string) => {
 		try {
 			await invoke("open_path", { path });
 		} catch (err: unknown) {
 			const msg = err instanceof Error ? err.message : String(err);
-			toast.error("Could not open file", { description: msg });
+			toast.error("Failed to open item", { description: msg });
 		}
-	};
+	}, []);
 
-	const handleReveal = async (path: string, isDir: boolean) => {
+	const handleReveal = useCallback(async (path: string) => {
 		try {
-			await invoke("reveal_in_explorer", { path, isDir });
+			await invoke("reveal_in_explorer", { path });
 		} catch (err: unknown) {
 			const msg = err instanceof Error ? err.message : String(err);
-			toast.error("Could not reveal in Explorer", { description: msg });
+			toast.error("Failed to reveal item", { description: msg });
 		}
-	};
+	}, []);
 
-	const handleCopyPath = (path: string) => {
+	const handleCopyPath = useCallback((path: string) => {
 		navigator.clipboard.writeText(path);
 		toast.success("Path copied to clipboard");
-	};
+	}, []);
 
-	// Keyboard navigation across search results: Up/Down, Enter, Ctrl+Enter
+	// Keyboard navigation in results
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent) => {
 			if (hits.length === 0) return;
 
 			if (e.key === "ArrowDown") {
 				e.preventDefault();
-				setSelectedIndex((prev) => (prev < hits.length - 1 ? prev + 1 : prev));
+				setSelectedIndex((prev) => Math.min(prev + 1, hits.length - 1));
 			} else if (e.key === "ArrowUp") {
 				e.preventDefault();
-				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0));
-			} else if (e.key === "Enter") {
-				if (selectedIndex >= 0 && selectedIndex < hits.length) {
-					e.preventDefault();
-					const hit = hits[selectedIndex];
-					if (e.ctrlKey) {
-						handleReveal(hit.path, hit.isDir);
+				setSelectedIndex((prev) => Math.max(prev - 1, 0));
+			} else if (e.key === "Enter" && selectedIndex >= 0) {
+				e.preventDefault();
+				const hit = hits[selectedIndex];
+				if (hit) {
+					if (hit.isDir && onAnalyzeFolder) {
+						onAnalyzeFolder(hit.path);
 					} else {
 						handleOpen(hit.path);
 					}
 				}
 			}
 		},
-		[hits, selectedIndex],
+		[hits, selectedIndex, onAnalyzeFolder, handleOpen]
 	);
 
-	// Virtualizer setup for List View
-	const totalCount = hits.length + (hits.length < total ? 1 : 0);
+	// Virtualized row list configuration
+	const totalCount = hits.length + (isLoadingMore ? 1 : 0);
 	const rowVirtualizer = useVirtualizer({
 		count: totalCount,
 		getScrollElement: () => listContainerRef.current,
 		estimateSize: (index) => {
+			if (index >= hits.length) return 40;
 			const hit = hits[index];
-			return hit?.snippet ? 84 : 56;
+			return hit.snippet ? 94 : 64;
 		},
-		overscan: 10,
+		overscan: 5,
 	});
 
-	// Scroll active item into view in list view
+	// Auto-scroll list when selectedIndex changes
 	useEffect(() => {
-		if (viewMode === "list" && selectedIndex >= 0 && selectedIndex < hits.length) {
+		if (selectedIndex >= 0 && viewMode === "list") {
 			rowVirtualizer.scrollToIndex(selectedIndex, { align: "auto" });
 		}
-	}, [selectedIndex, hits.length, rowVirtualizer, viewMode]);
+	}, [selectedIndex, rowVirtualizer, viewMode]);
 
-	// Load more items when scrolling near the end in list view
-	useEffect(() => {
-		if (viewMode !== "list") return;
-		const items = rowVirtualizer.getVirtualItems();
-		if (!items.length) return;
-		const lastItem = items[items.length - 1];
+	// Infinite scroll detection for list view
+	const handleScroll = useCallback(() => {
+		if (!listContainerRef.current) return;
+		const { scrollTop, scrollHeight, clientHeight } = listContainerRef.current;
 		if (
-			lastItem.index >= hits.length - 2 &&
-			hits.length < total &&
+			scrollHeight - (scrollTop + clientHeight) < 200 &&
 			!isSearching &&
-			!isLoadingMore
+			!isLoadingMore &&
+			hits.length < total
 		) {
 			loadMore();
 		}
-	}, [
-		viewMode,
-		rowVirtualizer,
-		hits.length,
-		total,
-		isSearching,
-		isLoadingMore,
-		loadMore,
-	]);
+	}, [isSearching, isLoadingMore, hits.length, total, loadMore]);
 
-	// Infinite scroll in cards view
+	useEffect(() => {
+		const el = listContainerRef.current;
+		if (!el || viewMode !== "list") return;
+		el.addEventListener("scroll", handleScroll);
+		return () => el.removeEventListener("scroll", handleScroll);
+	}, [handleScroll, viewMode]);
+
+	// Infinite scroll detection for cards view
 	const handleCardsScroll = useCallback(() => {
-		const el = cardsContainerRef.current;
-		if (!el || isSearching || isLoadingMore || hits.length >= total) return;
-		if (el.scrollHeight - el.scrollTop - el.clientHeight < 350) {
+		if (!cardsContainerRef.current) return;
+		const { scrollTop, scrollHeight, clientHeight } = cardsContainerRef.current;
+		if (
+			scrollHeight - (scrollTop + clientHeight) < 300 &&
+			!isSearching &&
+			!isLoadingMore &&
+			hits.length < total
+		) {
 			loadMore();
 		}
 	}, [isSearching, isLoadingMore, hits.length, total, loadMore]);
+
+	useEffect(() => {
+		const el = cardsContainerRef.current;
+		if (!el || viewMode !== "cards") return;
+		el.addEventListener("scroll", handleCardsScroll);
+		return () => el.removeEventListener("scroll", handleCardsScroll);
+	}, [handleCardsScroll, viewMode]);
+
+	// Keyboard shortcut: focus search input on Ctrl+K / Cmd+K
+	useEffect(() => {
+		const handler = (e: KeyboardEvent) => {
+			if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+				e.preventDefault();
+				inputRef.current?.focus();
+				inputRef.current?.select();
+			}
+		};
+		window.addEventListener("keydown", handler);
+		return () => window.removeEventListener("keydown", handler);
+	}, [inputRef]);
 
 	const folderName = useMemo(() => {
 		if (!currentFolderPath) return "";
@@ -212,7 +240,7 @@ export function SearchView({
 					<Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
 					<Input
 						ref={inputRef}
-						placeholder="Search files, folders, and contents... (e.g. report ext:pdf or exact &quot;phrases&quot;)"
+						placeholder="Search any file across your computer... (e.g. ChatGPT Image, report ext:pdf, &quot;exact phrase&quot;)"
 						value={query}
 						onChange={(e) => {
 							setQuery(e.target.value);
@@ -250,33 +278,13 @@ export function SearchView({
 				</Button>
 			</div>
 
-			{/* Empty Index Alert Banner */}
-			{isIndexEmpty && (
-				<div className="flex items-center justify-between px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs">
-					<div className="flex items-center gap-2">
-						<AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-						<span>
-							Search index has not been built yet (0 files indexed). Build your search index to search files across your computer.
-						</span>
-					</div>
-					<Button
-						size="sm"
-						onClick={() => onStartIndexing(false)}
-						className="h-7 text-xs px-3 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shrink-0"
-					>
-						<HardDrive className="h-3.5 w-3.5" />
-						Build Index Now
-					</Button>
-				</div>
-			)}
-
 			{/* Indexing In Progress Banner */}
 			{status?.isIndexing && (
 				<div className="flex items-center justify-between px-3 py-1.5 rounded-md bg-primary/10 border border-primary/20 text-foreground text-xs">
 					<div className="flex items-center gap-2">
 						<Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
 						<span>
-							Search index is building in background ({status.docCount.toLocaleString()} files indexed so far). Results will appear as items are indexed.
+							Background indexing is active ({status.docCount.toLocaleString()} files indexed). Live disk search is running for any files not yet indexed.
 						</span>
 					</div>
 					<Button
@@ -286,6 +294,26 @@ export function SearchView({
 						className="h-6 text-[11px] px-2 text-primary hover:bg-primary/20"
 					>
 						Details
+					</Button>
+				</div>
+			)}
+
+			{/* Empty Index Notice (only shown when query is empty so it never blocks search results) */}
+			{isIndexEmpty && !status?.isIndexing && !query.trim() && (
+				<div className="flex items-center justify-between px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 text-foreground text-xs">
+					<div className="flex items-center gap-2">
+						<FolderSearch className="h-4 w-4 text-primary shrink-0" />
+						<span>
+							Live disk search is active across your computer. Background indexing will manage files automatically.
+						</span>
+					</div>
+					<Button
+						size="sm"
+						onClick={() => onStartIndexing(false)}
+						className="h-7 text-xs px-3 gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+					>
+						<Sparkles className="h-3.5 w-3.5" />
+						Build Fast Index
 					</Button>
 				</div>
 			)}
@@ -313,90 +341,128 @@ export function SearchView({
 								if (currentFolderPath) {
 									setScope("folder");
 								} else {
-									toast.info("Select a folder in Disk Usage view first");
+									toast.info(
+										"Navigate to a folder first to search within current folder"
+									);
 								}
 							}}
-							disabled={!currentFolderPath}
 							className={`px-2.5 py-1 rounded-md transition-colors font-medium flex items-center gap-1.5 ${
 								scope === "folder"
 									? "bg-background text-foreground shadow-sm"
-									: "text-muted-foreground hover:text-foreground disabled:opacity-40"
+									: "text-muted-foreground hover:text-foreground"
 							}`}
-							title={currentFolderPath || "No folder currently viewed"}
+							title={
+								currentFolderPath
+									? `Search inside: ${currentFolderPath}`
+									: "Navigate to a folder first"
+							}
 						>
-							<FolderSearch className="h-3.5 w-3.5" />
-							Current Folder
-							{folderName && (
-								<span className="font-normal opacity-70 max-w-24 truncate">
-									({folderName})
-								</span>
-							)}
+							<Folder className="h-3.5 w-3.5" />
+							{folderName ? `Folder: ${folderName}` : "Current Folder"}
 						</button>
 					</div>
 
 					{/* Search Mode Toggle */}
 					<div className="flex items-center bg-muted/60 p-0.5 rounded-lg border">
-						{(["both", "names", "contents"] as const).map((m) => (
-							<button
-								key={m}
-								type="button"
-								onClick={() => setMode(m)}
-								className={`px-2.5 py-1 rounded-md transition-colors font-medium capitalize ${
-									mode === m
-										? "bg-background text-foreground shadow-sm"
-										: "text-muted-foreground hover:text-foreground"
-								}`}
-							>
-								{m}
-							</button>
-						))}
+						<button
+							type="button"
+							onClick={() => setMode("both")}
+							className={`px-2 py-1 rounded-md transition-colors ${
+								mode === "both"
+									? "bg-background text-foreground shadow-sm font-medium"
+									: "text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							All
+						</button>
+						<button
+							type="button"
+							onClick={() => setMode("names")}
+							className={`px-2 py-1 rounded-md transition-colors ${
+								mode === "names"
+									? "bg-background text-foreground shadow-sm font-medium"
+									: "text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							Names
+						</button>
+						<button
+							type="button"
+							onClick={() => setMode("contents")}
+							className={`px-2 py-1 rounded-md transition-colors ${
+								mode === "contents"
+									? "bg-background text-foreground shadow-sm font-medium"
+									: "text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							Contents
+						</button>
 					</div>
 
 					{/* Type Filter */}
 					<div className="flex items-center bg-muted/60 p-0.5 rounded-lg border">
-						{(["all", "files", "folders"] as const).map((t) => (
-							<button
-								key={t}
-								type="button"
-								onClick={() => setFilterType(t)}
-								className={`px-2.5 py-1 rounded-md transition-colors font-medium capitalize ${
-									filterType === t
-										? "bg-background text-foreground shadow-sm"
-										: "text-muted-foreground hover:text-foreground"
-								}`}
-							>
-								{t}
-							</button>
-						))}
+						<button
+							type="button"
+							onClick={() => setFilterType("all")}
+							className={`px-2 py-1 rounded-md transition-colors ${
+								filterType === "all"
+									? "bg-background text-foreground shadow-sm font-medium"
+									: "text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							All Types
+						</button>
+						<button
+							type="button"
+							onClick={() => setFilterType("files")}
+							className={`px-2 py-1 rounded-md transition-colors ${
+								filterType === "files"
+									? "bg-background text-foreground shadow-sm font-medium"
+									: "text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							Files
+						</button>
+						<button
+							type="button"
+							onClick={() => setFilterType("folders")}
+							className={`px-2 py-1 rounded-md transition-colors ${
+								filterType === "folders"
+									? "bg-background text-foreground shadow-sm font-medium"
+									: "text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							Folders
+						</button>
 					</div>
 
-					{/* Category Select */}
-					<Select value={filterCategory} onValueChange={setFilterCategory}>
-						<SelectTrigger className="h-8 w-32 text-xs">
-							<SelectValue placeholder="Category" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Categories</SelectItem>
-							<SelectItem value="Documents">Documents</SelectItem>
-							<SelectItem value="Code">Code</SelectItem>
-							<SelectItem value="Images">Images</SelectItem>
-							<SelectItem value="Video">Video</SelectItem>
-							<SelectItem value="Audio">Audio</SelectItem>
-							<SelectItem value="Archives">Archives</SelectItem>
-							<SelectItem value="Other">Other</SelectItem>
-						</SelectContent>
-					</Select>
+					{/* Category Dropdown */}
+					<select
+						value={filterCategory}
+						onChange={(e) => setFilterCategory(e.target.value)}
+						className="h-7 px-2 text-xs rounded-md bg-muted/60 border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+					>
+						<option value="all">All Categories</option>
+						<option value="Images">Images</option>
+						<option value="Video">Video</option>
+						<option value="Audio">Audio</option>
+						<option value="Documents">Documents</option>
+						<option value="Archives">Archives</option>
+						<option value="Code">Code</option>
+						<option value="Apps & Executables">Apps &amp; Executables</option>
+						<option value="Other">Other</option>
+					</select>
 				</div>
 
-				{/* Right: Results summary & View mode switcher */}
-				<div className="flex items-center gap-3 shrink-0 ml-auto">
-					<div className="text-muted-foreground">
+				{/* Results Stats & Layout Toggle */}
+				<div className="flex items-center gap-3">
+					<div className="flex items-center gap-2 text-muted-foreground">
 						{isSearching ? (
 							<span className="flex items-center gap-1.5 text-primary">
 								<Loader2 className="h-3.5 w-3.5 animate-spin" />
 								Searching...
 							</span>
-						) : query.trim() ? (
+						) : hits.length > 0 ? (
 							<span>
 								<strong className="text-foreground">
 									{total.toLocaleString()}
@@ -411,7 +477,7 @@ export function SearchView({
 					<div className="flex items-center bg-muted/60 p-0.5 rounded-lg border">
 						<button
 							type="button"
-							onClick={() => setViewMode("list")}
+							onClick={() => handleSetViewMode("list")}
 							className={`p-1.5 rounded-md transition-colors ${
 								viewMode === "list"
 									? "bg-background text-foreground shadow-sm"
@@ -424,7 +490,7 @@ export function SearchView({
 						</button>
 						<button
 							type="button"
-							onClick={() => setViewMode("cards")}
+							onClick={() => handleSetViewMode("cards")}
 							className={`p-1.5 rounded-md transition-colors ${
 								viewMode === "cards"
 									? "bg-background text-foreground shadow-sm"
@@ -441,65 +507,61 @@ export function SearchView({
 
 			{/* Main Results / Empty States Area */}
 			<div className="flex-1 min-h-0 relative">
-				{/* State 1: Index Not Built Yet (Show even if query entered, instead of misleading "No matches") */}
-				{isIndexEmpty ? (
-					<div className="h-full flex items-center justify-center p-6">
-						<Card className="max-w-lg w-full text-center border-dashed">
-							<CardContent className="pt-8 pb-8 px-6 space-y-4">
-								<div className="mx-auto w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-400">
-									<HardDrive className="h-6 w-6" />
-								</div>
-								<div>
-									<h3 className="text-lg font-bold">Search Index Not Built Yet</h3>
-									<p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-										{query.trim() ? (
-											<>
-												You searched for <strong className="text-foreground">&ldquo;{query}&rdquo;</strong>, but your computer has not been indexed yet (0 files indexed).
-											</>
-										) : (
-											<>
-												Fast full-text search powered by Tantivy in Rust. Search your computer by file name and instant text search inside files.
-											</>
-										)}
-										{" "}Build the index once, and all your future searches across your computer will be instant!
+				{!query.trim() ? (
+					isIndexEmpty ? (
+						/* Empty State when no query is typed and index not built yet */
+						<div className="h-full flex items-center justify-center p-6">
+							<Card className="max-w-lg w-full text-center border-dashed">
+								<CardContent className="pt-8 pb-8 px-6 space-y-4">
+									<div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+										<FolderSearch className="h-6 w-6" />
+									</div>
+									<div>
+										<h3 className="text-lg font-bold">Search Across Your Computer</h3>
+										<p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+											Live disk search is active. Type any file name or keyword above and find any file across your computer immediately!
+										</p>
+										<p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+											Default folders (User profile &amp; drives) are automatically searched, while ignore folders like node_modules and .git are skipped.
+										</p>
+									</div>
+									<div className="pt-2">
+										<Button
+											onClick={() => onStartIndexing(false)}
+											className="w-full gap-2 shadow-sm"
+										>
+											<Sparkles className="h-4 w-4" />
+											Build Background Index
+										</Button>
+									</div>
+									<p className="text-[11px] text-muted-foreground">
+										Index runs in the background at low priority so it never slows down your PC.
 									</p>
-								</div>
-								<div className="pt-2">
-									<Button
-										onClick={() => onStartIndexing(false)}
-										className="w-full gap-2 shadow-sm"
-									>
-										<Sparkles className="h-4 w-4" />
-										Build Search Index Now
-									</Button>
-								</div>
-								<p className="text-[11px] text-muted-foreground">
-									Default locations: User home folder (Downloads, Documents, Desktop, etc.).
-								</p>
-							</CardContent>
-						</Card>
-					</div>
-				) : !query.trim() ? (
-					/* State 2: Ready to search (prompt to type) */
-					<div className="h-full flex flex-col items-center justify-center text-center p-8 text-muted-foreground">
-						<FolderSearch className="h-12 w-12 stroke-[1.25] text-muted-foreground/40 mb-3" />
-						<h4 className="text-sm font-semibold text-foreground">
-							Search files and text content
-						</h4>
-						<p className="text-xs max-w-sm mt-1">
-							Type to search by name or file contents across{" "}
-							{status?.docCount.toLocaleString() ?? "all"} indexed items.
-						</p>
-						<div className="flex flex-wrap justify-center gap-1.5 mt-4 text-[11px] font-mono">
-							<span className="px-2 py-0.5 rounded bg-muted">ext:png</span>
-							<span className="px-2 py-0.5 rounded bg-muted">
-								&quot;exact phrase&quot;
-							</span>
-							<span className="px-2 py-0.5 rounded bg-muted">ChatGPT Image</span>
+								</CardContent>
+							</Card>
 						</div>
-					</div>
+					) : (
+						/* Ready to search (prompt to type) */
+						<div className="h-full flex flex-col items-center justify-center text-center p-8 text-muted-foreground">
+							<FolderSearch className="h-12 w-12 stroke-[1.25] text-muted-foreground/40 mb-3" />
+							<h4 className="text-sm font-semibold text-foreground">
+								Search files and text content
+							</h4>
+							<p className="text-xs max-w-sm mt-1">
+								Type to search by name or file contents across{" "}
+								{status?.docCount.toLocaleString() ?? "all"} indexed items + live disk search.
+							</p>
+							<div className="flex flex-wrap justify-center gap-1.5 mt-4 text-[11px] font-mono">
+								<span className="px-2 py-0.5 rounded bg-muted">ext:png</span>
+								<span className="px-2 py-0.5 rounded bg-muted">
+									&quot;exact phrase&quot;
+								</span>
+								<span className="px-2 py-0.5 rounded bg-muted">ChatGPT Image</span>
+							</div>
+						</div>
+					)
 				) : hits.length === 0 && !isSearching ? (
-					/* State 3: No Results Found */
+					/* No Results Found */
 					<div className="h-full flex flex-col items-center justify-center text-center p-8 text-muted-foreground">
 						{status?.isIndexing ? (
 							<>
@@ -519,7 +581,7 @@ export function SearchView({
 								</h4>
 								<p className="text-xs mt-1 max-w-sm">
 									No files or content found for &ldquo;{query}&rdquo;
-									{scope === "folder" ? " in the current folder." : ` across ${status?.docCount.toLocaleString() ?? 0} indexed files.`}
+									{scope === "folder" ? " in the current folder." : " across your computer."}
 								</p>
 								<div className="flex items-center gap-2 mt-3">
 									{scope === "folder" ? (
@@ -544,6 +606,12 @@ export function SearchView({
 								</div>
 							</>
 						)}
+					</div>
+				) : hits.length === 0 && isSearching ? (
+					/* First search loading spinner */
+					<div className="h-full flex flex-col items-center justify-center text-center p-8 text-muted-foreground">
+						<Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+						<p className="text-xs">Searching disk and index for &ldquo;{query}&rdquo;...</p>
 					</div>
 				) : viewMode === "list" ? (
 					/* State 4A: Virtualized List View */
@@ -598,129 +666,122 @@ export function SearchView({
 											transform: `translateY(${virtualRow.start}px)`,
 										}}
 										onClick={() => setSelectedIndex(index)}
-										onDoubleClick={() => handleOpen(hit.path)}
-										className={`group px-3 py-2 border-b transition-colors cursor-pointer rounded-sm flex flex-col justify-center ${
+										onDoubleClick={() => {
+											if (hit.isDir && onAnalyzeFolder) {
+												onAnalyzeFolder(hit.path);
+											} else {
+												handleOpen(hit.path);
+											}
+										}}
+										className={`group px-3 py-2 rounded-lg border transition-colors cursor-pointer flex flex-col gap-1.5 mb-1.5 ${
 											isSelected
-												? "bg-primary/10 border-primary/30"
-												: "hover:bg-muted/50 border-border/40"
+												? "bg-accent/70 border-primary/40 shadow-sm"
+												: "bg-card hover:bg-muted/50 border-border/60"
 										}`}
 									>
-										<div className="flex items-center justify-between gap-3 min-w-0">
-											{/* Left: Icon & Name & Path */}
+										<div className="flex items-center justify-between gap-3">
+											{/* Icon + Highlighted Name */}
 											<div className="flex items-center gap-2.5 min-w-0 flex-1">
-												<FileIcon name={hit.name} isDir={hit.isDir} size={18} />
-
-												<div className="min-w-0 flex-1">
-													<div className="flex items-center gap-2">
-														<span className="font-medium text-xs truncate text-foreground">
-															{renderHighlightedName(
-																hit.name,
-																hit.matchedNameRanges,
-															)}
-														</span>
-														{hit.isDir ? (
-															<Badge
-																variant="outline"
-																className="text-[10px] px-1 py-0 h-4"
-															>
-																Folder
-															</Badge>
-														) : (
-															<span className="text-[10px] text-muted-foreground uppercase font-mono">
-																{hit.category}
-															</span>
-														)}
-													</div>
-
-													<div
-														className="text-[11px] text-muted-foreground/80 truncate font-mono mt-0.5"
-														title={hit.path}
-													>
-														{hit.path}
-													</div>
-												</div>
+												{hit.isDir ? (
+													<Folder className="h-4 w-4 text-amber-500 shrink-0" />
+												) : (
+													<FileText className="h-4 w-4 text-blue-500 shrink-0" />
+												)}
+												<span className="font-medium text-xs truncate text-foreground">
+													<HighlightedText
+														text={hit.name}
+														ranges={hit.matchedNameRanges}
+													/>
+												</span>
+												<Badge
+													variant="outline"
+													className="text-[10px] py-0 px-1.5 h-4 font-normal text-muted-foreground shrink-0"
+												>
+													{hit.category}
+												</Badge>
 											</div>
 
-											{/* Right: Meta & Action buttons */}
-											<div className="flex items-center gap-3 shrink-0">
-												<div className="text-right text-[11px] text-muted-foreground hidden sm:block">
-													<div>
-														{!hit.isDir ? formatBytes(hit.sizeBytes) : "—"}
-													</div>
-													<div className="text-[10px] opacity-70">
-														{hit.modified ? formatDate(hit.modified) : ""}
-													</div>
-												</div>
+											{/* Size + Date + Quick Actions */}
+											<div className="flex items-center gap-3 text-[11px] text-muted-foreground shrink-0">
+												{!hit.isDir && (
+													<span className="font-mono">
+														{formatBytes(hit.sizeBytes)}
+													</span>
+												)}
+												{hit.modified && (
+													<span>
+														{new Date(hit.modified).toLocaleDateString()}
+													</span>
+												)}
 
-												{/* Quick actions hover toolbar */}
+												{/* Row Hover Actions */}
 												<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-													{hit.isDir && (
-														<Button
-															size="sm"
-															variant="ghost"
-															className="h-7 text-xs px-2 gap-1 text-primary hover:text-primary hover:bg-primary/10"
-															onClick={(e) => {
-																e.stopPropagation();
-																onAnalyzeFolder(hit.path);
-															}}
-															title="Analyze disk usage of this folder"
-														>
-															<PieChart className="h-3.5 w-3.5" />
-															Analyze
-														</Button>
-													)}
-
 													<Button
 														size="icon"
 														variant="ghost"
-														className="h-7 w-7 text-muted-foreground hover:text-foreground"
+														className="h-6 w-6"
 														onClick={(e) => {
 															e.stopPropagation();
 															handleOpen(hit.path);
 														}}
-														title="Open with default app (Enter)"
+														title="Open item"
 													>
-														<ExternalLink className="h-3.5 w-3.5" />
+														<ExternalLink className="h-3 w-3" />
 													</Button>
-
 													<Button
 														size="icon"
 														variant="ghost"
-														className="h-7 w-7 text-muted-foreground hover:text-foreground"
+														className="h-6 w-6"
 														onClick={(e) => {
 															e.stopPropagation();
-															handleReveal(hit.path, hit.isDir);
+															handleReveal(hit.path);
 														}}
-														title="Reveal in Explorer (Ctrl+Enter)"
+														title="Reveal in File Explorer"
 													>
-														<Folder className="h-3.5 w-3.5" />
+														<FolderOpen className="h-3 w-3" />
 													</Button>
-
 													<Button
 														size="icon"
 														variant="ghost"
-														className="h-7 w-7 text-muted-foreground hover:text-foreground"
+														className="h-6 w-6"
 														onClick={(e) => {
 															e.stopPropagation();
 															handleCopyPath(hit.path);
 														}}
 														title="Copy path"
 													>
-														<Copy className="h-3.5 w-3.5" />
+														<Copy className="h-3 w-3" />
 													</Button>
+													{hit.isDir && onAnalyzeFolder && (
+														<Button
+															size="icon"
+															variant="ghost"
+															className="h-6 w-6 text-primary"
+															onClick={(e) => {
+																e.stopPropagation();
+																onAnalyzeFolder(hit.path);
+															}}
+															title="Analyze folder in Tree View"
+														>
+															<BarChart3 className="h-3 w-3" />
+														</Button>
+													)}
 												</div>
 											</div>
 										</div>
 
-										{/* Snippet for Content Match */}
+										{/* Truncated File Path */}
+										<div className="text-[11px] text-muted-foreground/80 truncate font-mono pl-6">
+											{hit.path}
+										</div>
+
+										{/* Content Snippet (if available) */}
 										{hit.snippet && (
-											<div className="mt-1.5 pl-7 text-[11px] text-muted-foreground bg-muted/30 rounded px-2 py-1 font-mono leading-relaxed line-clamp-2">
-												&hellip;{" "}
-												{renderHighlightedSnippet(
-													hit.snippet.text,
-													hit.snippet.highlights,
-												)}{" "}
-												&hellip;
+											<div className="text-xs bg-muted/40 p-2 rounded border border-border/40 text-foreground/90 font-mono mt-0.5 ml-6">
+												<SnippetText
+													text={hit.snippet.text}
+													highlights={hit.snippet.highlights}
+												/>
 											</div>
 										)}
 									</div>
@@ -729,14 +790,12 @@ export function SearchView({
 						</div>
 					</div>
 				) : (
-					/* State 4B: Responsive Card Grid View */
+					/* State 4B: Cards Grid View */
 					<div
 						ref={cardsContainerRef}
-						onScroll={handleCardsScroll}
-						className="h-full overflow-y-auto pr-1 select-none"
-						tabIndex={0}
+						className="h-full overflow-y-auto pr-1 pb-4 select-none"
 					>
-						<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 p-1 pb-6">
+						<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
 							{hits.map((hit, index) => {
 								const isSelected = selectedIndex === index;
 
@@ -744,281 +803,291 @@ export function SearchView({
 									<Card
 										key={hit.path}
 										onClick={() => setSelectedIndex(index)}
-										onDoubleClick={() => handleOpen(hit.path)}
-										className={`group flex flex-col justify-between p-3.5 border transition-all cursor-pointer rounded-lg relative overflow-hidden select-text ${
+										onDoubleClick={() => {
+											if (hit.isDir && onAnalyzeFolder) {
+												onAnalyzeFolder(hit.path);
+											} else {
+												handleOpen(hit.path);
+											}
+										}}
+										className={`group flex flex-col justify-between transition-all duration-150 cursor-pointer overflow-hidden border ${
 											isSelected
-												? "border-primary ring-1 ring-primary bg-primary/5 shadow-sm"
-												: "hover:border-primary/40 hover:shadow-md hover:bg-card/90 bg-card"
+												? "border-primary shadow-sm bg-accent/40"
+												: "bg-card hover:bg-muted/40 hover:border-border/80"
 										}`}
 									>
-										<div>
-											{/* Top: Icon + Name + Category & Size */}
-											<div className="flex items-start gap-3">
-												<div className="shrink-0 flex items-center justify-center w-10 h-10 rounded-lg bg-muted/50 p-1 border border-border/50 group-hover:scale-105 transition-transform">
-													<FileIcon name={hit.name} isDir={hit.isDir} size={28} />
-												</div>
-
-												<div className="min-w-0 flex-1">
-													<span
-														className="font-medium text-xs truncate text-foreground block group-hover:text-primary transition-colors"
-														title={hit.name}
+										<CardContent className="p-3 flex flex-col gap-2 flex-1">
+											{/* Top Row: Icon + Category Badge */}
+											<div className="flex items-center justify-between gap-1.5">
+												<div className="flex items-center gap-1.5 min-w-0">
+													{hit.isDir ? (
+														<Folder className="h-4 w-4 text-amber-500 shrink-0" />
+													) : (
+														<FileText className="h-4 w-4 text-blue-500 shrink-0" />
+													)}
+													<Badge
+														variant="outline"
+														className="text-[9px] py-0 px-1 h-3.5 font-normal text-muted-foreground shrink-0"
 													>
-														{renderHighlightedName(hit.name, hit.matchedNameRanges)}
-													</span>
-
-													<div className="flex items-center gap-1.5 mt-1">
-														{hit.isDir ? (
-															<Badge
-																variant="outline"
-																className="text-[9px] px-1 py-0 h-4"
-															>
-																Folder
-															</Badge>
-														) : (
-															<Badge
-																variant="secondary"
-																className="text-[9px] px-1.5 py-0 h-4 uppercase font-mono font-normal"
-															>
-																{hit.category}
-															</Badge>
-														)}
-
-														<span className="text-[10px] text-muted-foreground ml-auto">
-															{!hit.isDir ? formatBytes(hit.sizeBytes) : "—"}
-														</span>
-													</div>
+														{hit.category}
+													</Badge>
 												</div>
+
+												{!hit.isDir && (
+													<span className="text-[10px] font-mono text-muted-foreground shrink-0">
+														{formatBytes(hit.sizeBytes)}
+													</span>
+												)}
 											</div>
 
-											{/* Path Row */}
+											{/* Filename with Highlight */}
 											<div
-												className="text-[10px] text-muted-foreground/80 truncate font-mono mt-2.5 px-2 py-1 rounded bg-muted/40"
+												className="font-medium text-xs text-foreground line-clamp-2 leading-snug break-words"
+												title={hit.name}
+											>
+												<HighlightedText
+													text={hit.name}
+													ranges={hit.matchedNameRanges}
+												/>
+											</div>
+
+											{/* Truncated Path */}
+											<div
+												className="text-[10px] text-muted-foreground/75 font-mono line-clamp-1 break-all"
 												title={hit.path}
 											>
 												{hit.path}
 											</div>
 
-											{/* Snippet for Content Match */}
+											{/* Content Snippet (if available) */}
 											{hit.snippet && (
-												<div className="mt-2 text-[10px] text-muted-foreground bg-muted/30 rounded p-1.5 font-mono leading-relaxed line-clamp-3 border border-border/30">
-													&hellip;{" "}
-													{renderHighlightedSnippet(
-														hit.snippet.text,
-														hit.snippet.highlights,
-													)}{" "}
-													&hellip;
+												<div className="text-[11px] bg-muted/40 p-1.5 rounded border border-border/40 text-foreground/80 font-mono line-clamp-2 leading-tight">
+													<SnippetText
+														text={hit.snippet.text}
+														highlights={hit.snippet.highlights}
+													/>
 												</div>
 											)}
-										</div>
+										</CardContent>
 
-										{/* Bottom Row: Modified Date & Quick Action Buttons */}
-										<div className="flex items-center justify-between mt-3 pt-2 border-t text-[10px] text-muted-foreground">
-											<span>{hit.modified ? formatDate(hit.modified) : ""}</span>
-
-											<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-												{hit.isDir && (
-													<Button
-														size="icon"
-														variant="ghost"
-														className="h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"
-														onClick={(e) => {
-															e.stopPropagation();
-															onAnalyzeFolder(hit.path);
-														}}
-														title="Analyze disk usage"
-													>
-														<PieChart className="h-3 w-3" />
-													</Button>
+										{/* Card Footer: Date & Action Icons */}
+										<div className="px-3 py-1.5 bg-muted/20 border-t flex items-center justify-between text-[10px] text-muted-foreground">
+											<div className="flex items-center gap-1">
+												{hit.modified ? (
+													<>
+														<Calendar className="h-3 w-3 shrink-0 opacity-70" />
+														<span>
+															{new Date(hit.modified).toLocaleDateString()}
+														</span>
+													</>
+												) : (
+													<span>-</span>
 												)}
+											</div>
 
+											{/* Action Toolbar */}
+											<div className="flex items-center gap-0.5">
 												<Button
 													size="icon"
 													variant="ghost"
-													className="h-6 w-6 text-muted-foreground hover:text-foreground"
+													className="h-5 w-5 text-muted-foreground hover:text-foreground"
 													onClick={(e) => {
 														e.stopPropagation();
 														handleOpen(hit.path);
 													}}
-													title="Open with default app (Enter)"
+													title="Open item"
 												>
-													<ExternalLink className="h-3 w-3" />
+													<ExternalLink className="h-2.5 w-2.5" />
 												</Button>
-
 												<Button
 													size="icon"
 													variant="ghost"
-													className="h-6 w-6 text-muted-foreground hover:text-foreground"
+													className="h-5 w-5 text-muted-foreground hover:text-foreground"
 													onClick={(e) => {
 														e.stopPropagation();
-														handleReveal(hit.path, hit.isDir);
+														handleReveal(hit.path);
 													}}
-													title="Reveal in Explorer (Ctrl+Enter)"
+													title="Reveal in File Explorer"
 												>
-													<Folder className="h-3 w-3" />
+													<FolderOpen className="h-2.5 w-2.5" />
 												</Button>
-
 												<Button
 													size="icon"
 													variant="ghost"
-													className="h-6 w-6 text-muted-foreground hover:text-foreground"
+													className="h-5 w-5 text-muted-foreground hover:text-foreground"
 													onClick={(e) => {
 														e.stopPropagation();
 														handleCopyPath(hit.path);
 													}}
 													title="Copy path"
 												>
-													<Copy className="h-3 w-3" />
+													<Copy className="h-2.5 w-2.5" />
 												</Button>
+												{hit.isDir && onAnalyzeFolder && (
+													<Button
+														size="icon"
+														variant="ghost"
+														className="h-5 w-5 text-primary hover:text-primary"
+														onClick={(e) => {
+															e.stopPropagation();
+															onAnalyzeFolder(hit.path);
+														}}
+														title="Analyze folder in Tree View"
+													>
+														<BarChart3 className="h-2.5 w-2.5" />
+													</Button>
+												)}
 											</div>
 										</div>
 									</Card>
 								);
 							})}
-
-							{/* Load more row in Cards view */}
-							{hits.length < total && (
-								<div className="col-span-full py-4 text-center">
-									<Button
-										variant="outline"
-										size="sm"
-										disabled={isLoadingMore}
-										onClick={loadMore}
-										className="gap-2 text-xs"
-									>
-										{isLoadingMore ? (
-											<>
-												<Loader2 className="h-3.5 w-3.5 animate-spin" />
-												Loading more...
-											</>
-										) : (
-											`Load more results (${hits.length} of ${total.toLocaleString()})`
-										)}
-									</Button>
-								</div>
-							)}
 						</div>
+
+						{/* Infinite Scroll Loader for Cards */}
+						{isLoadingMore && (
+							<div className="py-4 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+								<Loader2 className="h-4 w-4 animate-spin text-primary" />
+								Loading more results...
+							</div>
+						)}
 					</div>
 				)}
 			</div>
 
-			{/* Footer shortcut hints */}
+			{/* Bottom Status & Key Hints Bar */}
 			<div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t">
-				<div className="flex items-center gap-3">
+				<div className="flex items-center gap-4">
 					<span>
-						<kbd className="rounded border bg-muted px-1 py-0.5 text-[10px]">
-							↑
-						</kbd>{" "}
-						<kbd className="rounded border bg-muted px-1 py-0.5 text-[10px]">
-							↓
+						<strong>{hits.length}</strong> of{" "}
+						<strong>{total.toLocaleString()}</strong> results loaded
+					</span>
+					{status && (
+						<span className="hidden sm:inline">
+							Index: <strong>{status.docCount.toLocaleString()}</strong> items (
+							{formatBytes(status.sizeBytes)})
+						</span>
+					)}
+				</div>
+
+				<div className="hidden md:flex items-center gap-3">
+					<span className="flex items-center gap-1">
+						<kbd className="px-1 py-0.5 rounded bg-muted border font-mono text-[9px]">
+							&uarr;&darr;
 						</kbd>{" "}
 						Navigate
 					</span>
-					<span>
-						<kbd className="rounded border bg-muted px-1 py-0.5 text-[10px]">
+					<span className="flex items-center gap-1">
+						<kbd className="px-1 py-0.5 rounded bg-muted border font-mono text-[9px]">
 							Enter
 						</kbd>{" "}
-						Open
+						Open / Analyze
 					</span>
-					<span>
-						<kbd className="rounded border bg-muted px-1 py-0.5 text-[10px]">
-							Ctrl
-						</kbd>
-						+
-						<kbd className="rounded border bg-muted px-1 py-0.5 text-[10px]">
-							Enter
+					<span className="flex items-center gap-1">
+						<kbd className="px-1 py-0.5 rounded bg-muted border font-mono text-[9px]">
+							Esc
 						</kbd>{" "}
-						Explorer
+						Clear
 					</span>
-				</div>
-				<div>
-					{status && (
-						<span>{status.docCount.toLocaleString()} items indexed</span>
-					)}
 				</div>
 			</div>
 		</div>
 	);
 }
 
-/**
- * Builds React span elements with highlighted ranges for filename matching.
- * Never uses dangerouslySetInnerHTML.
- */
-function renderHighlightedName(name: string, ranges: [number, number][]) {
+/// Helper component to highlight matched ranges in file name
+function HighlightedText({
+	text,
+	ranges,
+}: {
+	text: string;
+	ranges: [number, number][];
+}) {
 	if (!ranges || ranges.length === 0) {
-		return name;
+		return <>{text}</>;
 	}
 
 	const elements: React.ReactNode[] = [];
 	let lastIndex = 0;
 
-	ranges.forEach(([start, end], idx) => {
-		const s = Math.max(0, Math.min(start, name.length));
-		const e = Math.max(s, Math.min(end, name.length));
+	for (let i = 0; i < ranges.length; i++) {
+		const [start, end] = ranges[i];
 
-		if (s > lastIndex) {
-			elements.push(<span key={`un-${idx}`}>{name.slice(lastIndex, s)}</span>);
-		}
-		if (e > s) {
+		// Text before highlight
+		if (start > lastIndex) {
 			elements.push(
-				<span
-					key={`hl-${idx}`}
-					className="font-bold text-primary underline underline-offset-2"
-				>
-					{name.slice(s, e)}
-				</span>,
+				<span key={`unmatched-${lastIndex}`}>
+					{text.slice(lastIndex, start)}
+				</span>
 			);
 		}
-		lastIndex = e;
-	});
 
-	if (lastIndex < name.length) {
-		elements.push(<span key="tail">{name.slice(lastIndex)}</span>);
+		// Highlighted portion
+		elements.push(
+			<mark
+				key={`match-${start}-${end}`}
+				className="bg-amber-400/35 dark:bg-amber-500/30 text-foreground font-semibold rounded-xs px-0.5"
+			>
+				{text.slice(start, end)}
+			</mark>
+		);
+
+		lastIndex = end;
 	}
 
-	return elements;
+	// Remaining text
+	if (lastIndex < text.length) {
+		elements.push(
+			<span key={`unmatched-${lastIndex}`}>{text.slice(lastIndex)}</span>
+		);
+	}
+
+	return <>{elements}</>;
 }
 
-/**
- * Builds React span elements with highlighted ranges for text snippet matching.
- * Never uses dangerouslySetInnerHTML.
- */
-function renderHighlightedSnippet(
-	text: string,
-	highlights: [number, number][],
-) {
+/// Helper component to render snippet text with highlighted ranges
+function SnippetText({
+	text,
+	highlights,
+}: {
+	text: string;
+	highlights: [number, number][];
+}) {
 	if (!highlights || highlights.length === 0) {
-		return text;
+		return <>{text}</>;
 	}
 
 	const elements: React.ReactNode[] = [];
 	let lastIndex = 0;
 
-	highlights.forEach(([start, end], idx) => {
-		const s = Math.max(0, Math.min(start, text.length));
-		const e = Math.max(s, Math.min(end, text.length));
+	for (let i = 0; i < highlights.length; i++) {
+		const [start, end] = highlights[i];
 
-		if (s > lastIndex) {
+		if (start > lastIndex) {
 			elements.push(
-				<span key={`sn-un-${idx}`}>{text.slice(lastIndex, s)}</span>,
+				<span key={`snip-unmatched-${lastIndex}`}>
+					{text.slice(lastIndex, start)}
+				</span>
 			);
 		}
-		if (e > s) {
-			elements.push(
-				<mark
-					key={`sn-hl-${idx}`}
-					className="bg-amber-400/40 text-foreground font-semibold rounded px-0.5"
-				>
-					{text.slice(s, e)}
-				</mark>,
-			);
-		}
-		lastIndex = e;
-	});
 
-	if (lastIndex < text.length) {
-		elements.push(<span key="sn-tail">{text.slice(lastIndex)}</span>);
+		elements.push(
+			<mark
+				key={`snip-match-${start}-${end}`}
+				className="bg-yellow-400/40 dark:bg-yellow-500/40 text-foreground font-medium rounded-xs px-0.5"
+			>
+				{text.slice(start, end)}
+			</mark>
+		);
+
+		lastIndex = end;
 	}
 
-	return elements;
+	if (lastIndex < text.length) {
+		elements.push(
+			<span key={`snip-unmatched-${lastIndex}`}>{text.slice(lastIndex)}</span>
+		);
+	}
+
+	return <>{elements}</>;
 }

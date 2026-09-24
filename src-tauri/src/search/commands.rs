@@ -1,11 +1,12 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 use tauri::ipc::Channel;
 use tauri::State;
 
 use crate::search::indexer::{run_indexing, IndexEvent, IndexManager, IndexStatus};
-use crate::search::query::{execute_search, SearchParams, SearchResult};
+use crate::search::query::{execute_search, live_filesystem_search, SearchParams, SearchResult};
 use crate::search::settings::SearchSettings;
 
 pub struct SearchEngine {
@@ -28,13 +29,70 @@ impl SearchEngine {
             }
         };
 
-        Self {
+        let engine = Self {
             app_data_dir,
             manager: Arc::new(std::sync::Mutex::new(manager)),
             settings: Arc::new(std::sync::Mutex::new(settings)),
             is_indexing: Arc::new(AtomicBool::new(false)),
             is_paused: Arc::new(AtomicBool::new(false)),
             cancel_token: Arc::new(AtomicBool::new(false)),
+        };
+
+        // Automatically manage index in the background: if index is empty, build it automatically
+        engine.auto_index_if_empty();
+
+        engine
+    }
+
+    pub fn auto_index_if_empty(&self) {
+        let is_empty = {
+            let guard = self.manager.lock().unwrap();
+            if let Some(ref m) = *guard {
+                m.get_status(false, false).doc_count == 0
+            } else {
+                false
+            }
+        };
+
+        if is_empty && !self.is_indexing.load(Ordering::SeqCst) {
+            self.is_indexing.store(true, Ordering::SeqCst);
+            self.cancel_token.store(false, Ordering::SeqCst);
+            self.is_paused.store(false, Ordering::SeqCst);
+
+            let is_indexing = Arc::clone(&self.is_indexing);
+            let is_paused = Arc::clone(&self.is_paused);
+            let cancel_token = Arc::clone(&self.cancel_token);
+            let manager_arc = Arc::clone(&self.manager);
+            let settings_arc = Arc::clone(&self.settings);
+
+            std::thread::Builder::new()
+                .name("auto-indexing-worker".into())
+                .spawn(move || {
+                    let settings = {
+                        let s = settings_arc.lock().unwrap();
+                        s.clone()
+                    };
+                    let manager_opt = {
+                        let guard = manager_arc.lock().unwrap();
+                        guard.clone()
+                    };
+
+                    if let Some(manager) = manager_opt {
+                        let channel = Channel::new(|_| Ok(()));
+                        let _ = run_indexing(
+                            &manager,
+                            &settings,
+                            false,
+                            &channel,
+                            cancel_token,
+                            Arc::clone(&is_paused),
+                        );
+                    }
+
+                    is_indexing.store(false, Ordering::SeqCst);
+                    is_paused.store(false, Ordering::SeqCst);
+                })
+                .ok();
         }
     }
 }
@@ -155,8 +213,9 @@ pub fn resume_indexing(engine: State<'_, Arc<SearchEngine>>) -> Result<(), Strin
 
 #[tauri::command]
 pub fn cancel_indexing(engine: State<'_, Arc<SearchEngine>>) -> Result<(), String> {
-    engine.cancel_token.store(true, Ordering::SeqCst);
-    engine.is_paused.store(false, Ordering::SeqCst);
+    if engine.is_indexing.load(Ordering::SeqCst) {
+        engine.cancel_token.store(true, Ordering::SeqCst);
+    }
     Ok(())
 }
 
@@ -170,23 +229,17 @@ pub async fn clear_index(engine: State<'_, Arc<SearchEngine>>) -> Result<(), Str
     let manager_arc = Arc::clone(&engine.manager);
 
     tokio::task::spawn_blocking(move || {
-        let mut manager_guard = manager_arc.lock().unwrap();
-        // Drop current manager so locks are released
-        *manager_guard = None;
-
         let index_dir = app_data_dir.join("index");
         if index_dir.exists() {
             let _ = std::fs::remove_dir_all(&index_dir);
         }
 
-        // Recreate clean manager
-        match IndexManager::open_or_create(&app_data_dir) {
-            Ok(new_manager) => {
-                *manager_guard = Some(new_manager);
-                Ok(())
-            }
-            Err(e) => Err(format!("Failed to recreate index: {}", e)),
-        }
+        let new_manager = IndexManager::open_or_create(&app_data_dir)
+            .map_err(|e| format!("Failed to recreate index: {}", e))?;
+
+        let mut guard = manager_arc.lock().unwrap();
+        *guard = Some(new_manager);
+        Ok(())
     })
     .await
     .map_err(|e| format!("Task error: {}", e))?
@@ -204,21 +257,23 @@ pub async fn search(
     offset: Option<usize>,
     engine: State<'_, Arc<SearchEngine>>,
 ) -> Result<SearchResult, String> {
-    let (content_extensions, max_content_size_mb) = {
+    let (content_extensions, max_content_size_mb, roots, exclusions) = {
         let s = engine.settings.lock().unwrap();
-        (s.content_extensions.clone(), s.max_content_size_mb)
+        let roots: Vec<String> = s.roots.iter().map(|r| r.path.clone()).collect();
+        (
+            s.content_extensions.clone(),
+            s.max_content_size_mb,
+            roots,
+            s.exclusions.clone(),
+        )
     };
 
     let manager = {
         let manager_guard = engine.manager.lock().unwrap();
-        manager_guard
-            .as_ref()
-            .cloned()
-            .ok_or_else(|| "Index is not available.".to_string())?
+        manager_guard.as_ref().cloned()
     };
 
     tokio::task::spawn_blocking(move || {
-        let searcher = manager.reader.searcher();
         let params = SearchParams {
             query,
             scope,
@@ -230,14 +285,37 @@ pub async fn search(
             offset,
         };
 
-        execute_search(
-            &manager.index,
-            &searcher,
-            &manager.fields,
-            params,
-            &content_extensions,
-            max_content_size_mb,
-        )
+        if let Some(ref m) = manager {
+            let searcher = m.reader.searcher();
+            execute_search(
+                &m.index,
+                &searcher,
+                &m.fields,
+                params,
+                &roots,
+                &exclusions,
+                &content_extensions,
+                max_content_size_mb,
+            )
+        } else {
+            let start = Instant::now();
+            let limit_num = params.limit.unwrap_or(50).max(1);
+            let mut existing = std::collections::HashSet::new();
+            let hits = live_filesystem_search(
+                &params,
+                &roots,
+                &exclusions,
+                &mut existing,
+                limit_num,
+                std::time::Duration::from_millis(2000),
+            );
+            let total = hits.len();
+            Ok(SearchResult {
+                hits,
+                total,
+                took_ms: start.elapsed().as_millis() as u64,
+            })
+        }
     })
     .await
     .map_err(|e| format!("Search task error: {}", e))?
@@ -258,8 +336,12 @@ pub async fn open_path(path: String) -> Result<(), String> {
         }
         #[cfg(not(windows))]
         {
-            tauri_plugin_opener::open_path(&path, None::<&str>)
-                .map_err(|e| format!("Failed to open path: {}", e))
+            use std::process::Command;
+            Command::new("xdg-open")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| format!("Failed to open path: {}", e))?;
+            Ok(())
         }
     })
     .await
