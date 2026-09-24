@@ -23,6 +23,7 @@ export const siteConfig = {
   links: {
     github: REPO_URL,
     releases: `${REPO_URL}/releases`,
+    downloadExe: `${REPO_URL}/releases/latest/download/folder-size-viewer.exe`,
     issues: `${REPO_URL}/issues`,
     docs: '/docs',
     gettingStarted: '/docs/getting-started',

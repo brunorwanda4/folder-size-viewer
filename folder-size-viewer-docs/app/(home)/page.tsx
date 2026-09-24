@@ -11,6 +11,7 @@ import {
   FolderSearch,
   Sparkles,
   Play,
+  Download,
 } from 'lucide-react';
 import { siteConfig } from '@/lib/site-config';
 import { Screenshot } from '@/components/screenshot';
@@ -39,11 +40,18 @@ export default function HomePage() {
 
           {/* Action buttons */}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-            <Link
-              href="/docs"
+            <a
+              href={siteConfig.links.downloadExe}
               className="inline-flex items-center gap-2 rounded-xl bg-fd-primary px-6 py-3 text-sm font-semibold text-fd-primary-foreground shadow-sm hover:bg-fd-primary/90 transition-all active:scale-[0.98]"
             >
-              <span>Get started</span>
+              <Download className="size-4" />
+              <span>Download for Windows</span>
+            </a>
+            <Link
+              href="/docs"
+              className="inline-flex items-center gap-2 rounded-xl border border-fd-border bg-fd-card px-6 py-3 text-sm font-semibold text-fd-foreground shadow-sm hover:bg-fd-accent transition-all active:scale-[0.98]"
+            >
+              <span>Documentation</span>
               <ArrowRight className="size-4" />
             </Link>
             <a
@@ -322,9 +330,16 @@ export default function HomePage() {
             Get started with installation, scanning guides, search query syntax, and Tauri development architecture.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+            <a
+              href={siteConfig.links.downloadExe}
+              className="inline-flex items-center gap-2 rounded-xl bg-fd-primary px-5 py-2.5 text-sm font-semibold text-fd-primary-foreground shadow-xs hover:bg-fd-primary/90 transition-all"
+            >
+              <Download className="size-4" />
+              <span>Download (.exe)</span>
+            </a>
             <Link
               href="/docs/getting-started"
-              className="inline-flex items-center gap-2 rounded-xl bg-fd-primary px-5 py-2.5 text-sm font-semibold text-fd-primary-foreground shadow-xs hover:bg-fd-primary/90 transition-all"
+              className="inline-flex items-center gap-2 rounded-xl border border-fd-border bg-fd-card px-5 py-2.5 text-sm font-medium text-fd-foreground shadow-xs hover:bg-fd-accent transition-all"
             >
               <span>Explore Docs</span>
               <ArrowRight className="size-4" />
