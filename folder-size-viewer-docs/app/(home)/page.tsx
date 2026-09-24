@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   HardDrive,
   LayoutGrid,
@@ -27,7 +28,18 @@ export default function HomePage() {
         </div>
 
         <div className="container mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 text-center">
-
+          <div className="mb-6 flex justify-center">
+            <div className="size-16 sm:size-20 rounded-2xl bg-fd-card border border-fd-border/80 p-2 shadow-lg shadow-sky-500/5 backdrop-blur-sm flex items-center justify-center overflow-hidden">
+              <Image
+                src="/logo.png"
+                alt="Folder Size Viewer Logo"
+                width={80}
+                height={80}
+                className="size-full object-contain rounded-xl"
+                priority
+              />
+            </div>
+          </div>
 
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl md:text-7xl text-fd-foreground">
             Folder Size Viewer
@@ -68,9 +80,18 @@ export default function HomePage() {
                     <span className="size-3 rounded-full bg-amber-400/80 inline-block" />
                     <span className="size-3 rounded-full bg-emerald-400/80 inline-block" />
                   </div>
-                  <span className="ml-2 font-mono font-medium text-fd-foreground/80 hidden sm:inline-block">
-                    Folder Size Viewer — C:\Users\Projects
-                  </span>
+                  <div className="ml-2 flex items-center gap-1.5 hidden sm:flex">
+                    <Image
+                      src="/logo.png"
+                      alt=""
+                      width={16}
+                      height={16}
+                      className="size-4 rounded-xs object-contain"
+                    />
+                    <span className="font-mono font-medium text-fd-foreground/80">
+                      Folder Size Viewer — C:\Users\Projects
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="inline-flex items-center gap-1 rounded bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-600 dark:text-sky-400">

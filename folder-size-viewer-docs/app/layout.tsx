@@ -27,7 +27,12 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: 'Folder Size Viewer Team', url: siteConfig.repoUrl }],
   icons: {
-    icon: '/icon.svg',
+    icon: [
+      { url: '/logo.png', type: 'image/png' },
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    shortcut: '/logo.png',
+    apple: '/logo.png',
   },
   openGraph: {
     type: 'website',
@@ -36,11 +41,20 @@ export const metadata: Metadata = {
     siteName: siteConfig.name,
     title: siteConfig.title,
     description: siteConfig.description,
+    images: [
+      {
+        url: '/logo.png',
+        width: 512,
+        height: 512,
+        alt: siteConfig.name,
+      },
+    ],
   },
   twitter: {
-    card: 'summary_large_image',
+    card: 'summary',
     title: siteConfig.title,
     description: siteConfig.description,
+    images: ['/logo.png'],
   },
   robots: {
     index: true,
