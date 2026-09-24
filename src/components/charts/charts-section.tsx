@@ -44,6 +44,8 @@ export function ChartsSection({
   const [throttledSummary, setThrottledSummary] = useState(summary);
   const lastUpdateRef = useRef<number>(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestDataRef = useRef({ entries, summary });
+  latestDataRef.current = { entries, summary };
 
   useEffect(() => {
     if (scanState !== "scanning") {
@@ -67,8 +69,8 @@ export function ChartsSection({
     } else if (!timeoutRef.current) {
       timeoutRef.current = setTimeout(() => {
         lastUpdateRef.current = Date.now();
-        setThrottledEntries(entries);
-        setThrottledSummary(summary);
+        setThrottledEntries(latestDataRef.current.entries);
+        setThrottledSummary(latestDataRef.current.summary);
         timeoutRef.current = null;
       }, 250 - elapsed);
     }

@@ -137,9 +137,13 @@ export function TopFoldersChart({
                 const item = payload[0].payload as TopFolderBarItem;
                 return (
                   <div className="rounded-lg border border-border/60 bg-popover p-2.5 shadow-md text-xs space-y-1">
-                    <p className="font-semibold text-foreground break-all">
-                      {item.fullName}
-                    </p>
+                    <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full inline-block shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <p className="break-all">{item.fullName}</p>
+                    </div>
                     <p className="font-mono text-muted-foreground">
                       Size: {formatBytes(item.sizeBytes)} ({formatNumber(item.sizeBytes)} bytes)
                     </p>
@@ -171,15 +175,11 @@ export function TopFoldersChart({
               {data.map((entry) => (
                 <Cell
                   key={entry.id}
-                  fill={
-                    entry.clickable
-                      ? "hsl(var(--primary))"
-                      : "hsl(var(--muted-foreground) / 0.45)"
-                  }
+                  fill={entry.color}
                   className={
                     entry.clickable
-                      ? "cursor-pointer hover:opacity-85 transition-opacity"
-                      : ""
+                      ? "cursor-pointer hover:opacity-80 transition-opacity"
+                      : "opacity-80"
                   }
                 />
               ))}

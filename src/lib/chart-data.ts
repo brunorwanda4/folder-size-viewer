@@ -9,6 +9,7 @@ export interface TopFolderBarItem {
   percent: number;
   isFolder: boolean;
   clickable: boolean;
+  color: string;
 }
 
 export interface FileTypeSlice {
@@ -23,6 +24,20 @@ export function truncateName(name: string, maxLen = 20): string {
   if (name.length <= maxLen) return name;
   return `${name.slice(0, maxLen - 1)}…`;
 }
+
+export const FOLDER_PALETTE = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+  "hsl(var(--chart-6))",
+  "hsl(var(--chart-7))",
+  "hsl(var(--chart-8))",
+];
+
+export const OTHER_FOLDERS_COLOR = "hsl(var(--chart-10))";
+export const FILES_IN_FOLDER_COLOR = "hsl(var(--muted-foreground) / 0.45)";
 
 /**
  * Builds the top folders by storage data.
@@ -51,6 +66,7 @@ export function buildTopFolders(
     percent: totalSize > 0 ? (f.sizeBytes / totalSize) * 100 : 0,
     isFolder: true,
     clickable: true,
+    color: FOLDER_PALETTE[idx % FOLDER_PALETTE.length],
   }));
 
   const otherFoldersBytes = remainingFolders.reduce(
@@ -67,6 +83,7 @@ export function buildTopFolders(
       percent: totalSize > 0 ? (otherFoldersBytes / totalSize) * 100 : 0,
       isFolder: true,
       clickable: false,
+      color: OTHER_FOLDERS_COLOR,
     });
   }
 
@@ -81,6 +98,7 @@ export function buildTopFolders(
       percent: totalSize > 0 ? (filesBytes / totalSize) * 100 : 0,
       isFolder: false,
       clickable: false,
+      color: FILES_IN_FOLDER_COLOR,
     });
   }
 
@@ -88,31 +106,39 @@ export function buildTopFolders(
 }
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  Images: "var(--chart-1)",
-  Video: "var(--chart-2)",
-  Audio: "var(--chart-3)",
-  Documents: "var(--chart-4)",
-  Archives: "var(--chart-5)",
-  Code: "var(--chart-6)",
-  "Apps & Executables": "var(--chart-7)",
-  Databases: "var(--chart-8)",
-  "System & Logs": "var(--chart-9)",
-  Other: "var(--chart-10)",
+  Images: "hsl(var(--chart-1))",
+  Video: "hsl(var(--chart-2))",
+  Audio: "hsl(var(--chart-3))",
+  Documents: "hsl(var(--chart-4))",
+  Archives: "hsl(var(--chart-5))",
+  Code: "hsl(var(--chart-6))",
+  "Apps & Executables": "hsl(var(--chart-7))",
+  Databases: "hsl(var(--chart-8))",
+  "System & Logs": "hsl(var(--chart-9))",
+  Other: "hsl(var(--chart-10))",
 };
 
 /**
  * Builds the file type breakdown data for the Donut chart.
  * Slices smaller than 2% are merged into "Other".
+ * All percentages are normalized against the total categorized storage.
  */
 export function buildTypeBreakdown(
   summary: ScanSummary | null
 ): FileTypeSlice[] {
   if (!summary || !summary.categories) return [];
 
-  const totalSize = summary.totalSize;
-  if (totalSize === 0) return [];
-
   const rawCategories = summary.categories;
+  const totalCategoryBytes = Object.values(rawCategories).reduce(
+    (acc, s) => acc + s.bytes,
+    0
+  );
+
+  const effectiveTotal =
+    totalCategoryBytes > 0 ? totalCategoryBytes : (summary.totalSize || 0);
+
+  if (effectiveTotal === 0) return [];
+
   let otherBytes = 0;
   let otherFiles = 0;
 
@@ -121,7 +147,7 @@ export function buildTypeBreakdown(
   for (const [catName, stat] of Object.entries(rawCategories)) {
     if (stat.bytes === 0 && stat.files === 0) continue;
 
-    const percent = (stat.bytes / totalSize) * 100;
+    const percent = (stat.bytes / effectiveTotal) * 100;
 
     if (catName === "Other" || percent < 2) {
       otherBytes += stat.bytes;
@@ -132,7 +158,7 @@ export function buildTypeBreakdown(
         bytes: stat.bytes,
         files: stat.files,
         percent,
-        fill: CATEGORY_COLORS[catName] || "var(--chart-10)",
+        fill: CATEGORY_COLORS[catName] || "hsl(var(--chart-10))",
       });
     }
   }
@@ -146,8 +172,8 @@ export function buildTypeBreakdown(
       category: "Other",
       bytes: otherBytes,
       files: otherFiles,
-      percent: (otherBytes / totalSize) * 100,
-      fill: CATEGORY_COLORS["Other"] || "var(--chart-10)",
+      percent: (otherBytes / effectiveTotal) * 100,
+      fill: CATEGORY_COLORS["Other"] || "hsl(var(--chart-10))",
     });
   }
 

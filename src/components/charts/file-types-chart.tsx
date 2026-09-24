@@ -24,19 +24,19 @@ interface FileTypesChartProps {
 }
 
 const chartConfig: ChartConfig = {
-  Images: { label: "Images", color: "var(--chart-1)" },
-  Video: { label: "Video", color: "var(--chart-2)" },
-  Audio: { label: "Audio", color: "var(--chart-3)" },
-  Documents: { label: "Documents", color: "var(--chart-4)" },
-  Archives: { label: "Archives", color: "var(--chart-5)" },
-  Code: { label: "Code", color: "var(--chart-6)" },
+  Images: { label: "Images", color: "hsl(var(--chart-1))" },
+  Video: { label: "Video", color: "hsl(var(--chart-2))" },
+  Audio: { label: "Audio", color: "hsl(var(--chart-3))" },
+  Documents: { label: "Documents", color: "hsl(var(--chart-4))" },
+  Archives: { label: "Archives", color: "hsl(var(--chart-5))" },
+  Code: { label: "Code", color: "hsl(var(--chart-6))" },
   "Apps & Executables": {
     label: "Apps & Executables",
-    color: "var(--chart-7)",
+    color: "hsl(var(--chart-7))",
   },
-  Databases: { label: "Databases", color: "var(--chart-8)" },
-  "System & Logs": { label: "System & Logs", color: "var(--chart-9)" },
-  Other: { label: "Other", color: "var(--chart-10)" },
+  Databases: { label: "Databases", color: "hsl(var(--chart-8))" },
+  "System & Logs": { label: "System & Logs", color: "hsl(var(--chart-9))" },
+  Other: { label: "Other", color: "hsl(var(--chart-10))" },
 };
 
 export function FileTypesChart({ summary, scanState }: FileTypesChartProps) {
@@ -158,16 +158,16 @@ export function FileTypesChart({ summary, scanState }: FileTypesChartProps) {
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-2 text-[11px] text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-center gap-x-3.5 gap-y-1.5 pt-2 text-[11px] text-muted-foreground">
           {data.map((slice) => (
-            <div key={slice.category} className="flex items-center gap-1.5">
+            <div key={slice.category} className="flex items-center gap-1.5 hover:text-foreground transition-colors">
               <span
-                className="w-2 h-2 rounded-full shrink-0"
+                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
                 style={{ backgroundColor: slice.fill }}
               />
-              <span>{slice.category}</span>
+              <span className="font-medium">{slice.category}</span>
               <span className="font-mono text-[10px] opacity-75">
-                ({slice.percent.toFixed(0)}%)
+                ({slice.percent < 1 && slice.percent > 0 ? "<1%" : `${slice.percent.toFixed(0)}%`})
               </span>
             </div>
           ))}

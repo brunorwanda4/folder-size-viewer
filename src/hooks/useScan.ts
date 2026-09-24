@@ -107,27 +107,25 @@ export function useScan() {
             });
             break;
 
-          case "childDone":
-            setEntries((prev) => {
-              const updated = [...prev, event.entry];
-              // Live update running total
-              const runningTotal = updated.reduce((acc, e) => acc + e.sizeBytes, 0);
-              setSummary((prevSummary) => {
-                const nextCategories = mergeCategories(
-                  prevSummary?.categories || {},
-                  event.entry.categories
-                );
-                return {
-                  totalSize: runningTotal,
-                  totalChildren: prevSummary?.totalChildren || updated.length,
-                  elapsedMs: prevSummary?.elapsedMs || 0,
-                  skippedCount: prevSummary?.skippedCount || 0,
-                  categories: nextCategories,
-                };
-              });
-              return updated;
+          case "childDone": {
+            const entry = event.entry;
+            setEntries((prev) => [...prev, entry]);
+            setSummary((prevSummary) => {
+              const runningTotal = (prevSummary?.totalSize || 0) + entry.sizeBytes;
+              const nextCategories = mergeCategories(
+                prevSummary?.categories || {},
+                entry.categories
+              );
+              return {
+                totalSize: runningTotal,
+                totalChildren: prevSummary?.totalChildren || 0,
+                elapsedMs: prevSummary?.elapsedMs || 0,
+                skippedCount: prevSummary?.skippedCount || 0,
+                categories: nextCategories,
+              };
             });
             break;
+          }
 
           case "finished":
             setSummary((prevSummary) => ({

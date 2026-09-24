@@ -61,7 +61,7 @@ export default function App() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-      <div className="flex flex-col h-screen max-h-screen bg-background text-foreground antialiased overflow-hidden p-4 md:p-6 gap-3.5 select-none">
+      <div className="flex flex-col bg-background text-foreground antialiased overflow-hidden p-4 md:p-6 gap-3.5 select-none">
         {/* Top Header */}
         <Header />
 
