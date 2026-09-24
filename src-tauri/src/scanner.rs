@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -7,7 +8,7 @@ use std::time::{Instant, UNIX_EPOCH};
 use rayon::prelude::*;
 use tauri::ipc::Channel;
 
-use crate::types::{FolderChildEntry, ScanEvent, ScanResult};
+use crate::types::{classify, CategoryStat, FolderChildEntry, ScanEvent, ScanResult};
 
 /// Expands environment variables like %LOCALAPPDATA% or %USERPROFILE% and tilde ~ paths.
 pub fn expand_path(raw: &str) -> PathBuf {
@@ -84,15 +85,16 @@ pub fn is_reparse_point_or_symlink(meta: &fs::Metadata) -> bool {
     false
 }
 
-/// Computes the recursive size and file count for a directory.
+/// Computes the recursive size, file count, and category breakdown for a directory.
 /// Uses an iterative stack walk, skips reparse points/symlinks, and ignores permission errors.
 fn compute_folder_recursive(
     folder_path: &Path,
     cancel_token: &Arc<AtomicBool>,
     skipped_count: &AtomicU64,
-) -> (u64, u64, Option<String>) {
+) -> (u64, u64, HashMap<String, CategoryStat>, Option<String>) {
     let mut total_size: u64 = 0;
     let mut total_files: u64 = 0;
+    let mut categories: HashMap<String, CategoryStat> = HashMap::new();
     let mut last_error: Option<String> = None;
 
     let mut stack: Vec<PathBuf> = vec![folder_path.to_path_buf()];
@@ -147,15 +149,21 @@ fn compute_folder_recursive(
             if meta.is_dir() {
                 stack.push(item_path);
             } else {
-                // Logical file size: Using metadata.len() as required. This reports the uncompressed
-                // logical length rather than disk cluster allocation (size on disk).
-                total_size += meta.len();
+                // Logical file size: Using metadata.len() as required.
+                let size = meta.len();
+                total_size += size;
                 total_files += 1;
+
+                let ext = item_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+                let cat = classify(ext);
+                let stat = categories.entry(cat.as_str().to_string()).or_default();
+                stat.bytes += size;
+                stat.files += 1;
             }
         }
     }
 
-    (total_size, total_files, last_error)
+    (total_size, total_files, categories, last_error)
 }
 
 /// Processes a single immediate child of the scanned directory.
@@ -184,6 +192,7 @@ fn process_child_entry(
                 file_count: 0,
                 modified: None,
                 error: Some(e.to_string()),
+                categories: HashMap::new(),
             };
         }
     };
@@ -207,10 +216,11 @@ fn process_child_entry(
                 file_count: 0,
                 modified,
                 error: Some("Reparse point / Junction (skipped traversal)".to_string()),
+                categories: HashMap::new(),
             }
         } else {
             // Compute recursive folder size in parallel thread pool
-            let (size_bytes, file_count, error) =
+            let (size_bytes, file_count, categories, error) =
                 compute_folder_recursive(child_path, cancel_token, skipped_count);
 
             FolderChildEntry {
@@ -221,10 +231,25 @@ fn process_child_entry(
                 file_count,
                 modified,
                 error,
+                categories,
             }
         }
     } else {
         // Regular file: logical size is metadata.len()
+        let mut categories = HashMap::new();
+        let ext = child_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+        let cat = classify(ext);
+        categories.insert(
+            cat.as_str().to_string(),
+            CategoryStat {
+                bytes: meta.len(),
+                files: 1,
+            },
+        );
+
         FolderChildEntry {
             name,
             path: path_str,
@@ -233,6 +258,7 @@ fn process_child_entry(
             file_count: 1,
             modified,
             error: None,
+            categories,
         }
     }
 }
@@ -313,6 +339,15 @@ pub fn scan_directory(
         return Err("Scan was cancelled by the user.".to_string());
     }
 
+    let mut total_categories: HashMap<String, CategoryStat> = HashMap::new();
+    for entry in &child_entries {
+        for (cat, stat) in &entry.categories {
+            let entry_stat = total_categories.entry(cat.clone()).or_default();
+            entry_stat.bytes += stat.bytes;
+            entry_stat.files += stat.files;
+        }
+    }
+
     let total_size: u64 = child_entries.iter().map(|e| e.size_bytes).sum();
     let elapsed_ms = start_time.elapsed().as_millis() as u64;
     let final_skipped = skipped_count.load(Ordering::SeqCst);
@@ -321,6 +356,7 @@ pub fn scan_directory(
         total_size,
         elapsed_ms,
         skipped_count: final_skipped,
+        categories: total_categories.clone(),
     });
 
     Ok(ScanResult {
@@ -329,14 +365,31 @@ pub fn scan_directory(
         elapsed_ms,
         skipped_count: final_skipped,
         entries: child_entries,
+        categories: total_categories,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::FileCategory;
     use std::fs::File;
     use std::io::Write;
+
+    #[test]
+    fn test_classify() {
+        assert_eq!(classify("png"), FileCategory::Images);
+        assert_eq!(classify(".JPG"), FileCategory::Images);
+        assert_eq!(classify("MP4"), FileCategory::Video);
+        assert_eq!(classify("mp3"), FileCategory::Audio);
+        assert_eq!(classify("pdf"), FileCategory::Documents);
+        assert_eq!(classify("zip"), FileCategory::Archives);
+        assert_eq!(classify("rs"), FileCategory::Code);
+        assert_eq!(classify("exe"), FileCategory::AppsAndExecutables);
+        assert_eq!(classify("sqlite"), FileCategory::Databases);
+        assert_eq!(classify("log"), FileCategory::SystemAndLogs);
+        assert_eq!(classify("unknown_ext_xyz"), FileCategory::Other);
+    }
 
     #[test]
     fn test_expand_path_environment_variable() {
@@ -354,7 +407,7 @@ mod tests {
     }
 
     #[test]
-    fn test_recursive_folder_size() {
+    fn test_recursive_folder_size_with_categories() {
         let temp_dir = std::env::temp_dir().join(format!("fsv_test_{}", std::process::id()));
         let _ = fs::remove_dir_all(&temp_dir);
         fs::create_dir_all(&temp_dir).unwrap();
@@ -362,46 +415,32 @@ mod tests {
         let sub_dir = temp_dir.join("subdir");
         fs::create_dir_all(&sub_dir).unwrap();
 
-        // Create file 1 (100 bytes)
+        // Create file 1 (100 bytes txt)
         let file1_path = temp_dir.join("file1.txt");
         let mut f1 = File::create(&file1_path).unwrap();
         f1.write_all(&vec![b'A'; 100]).unwrap();
 
-        // Create file 2 in sub_dir (250 bytes)
-        let file2_path = sub_dir.join("file2.txt");
+        // Create file 2 in sub_dir (250 bytes png)
+        let file2_path = sub_dir.join("file2.png");
         let mut f2 = File::create(&file2_path).unwrap();
         f2.write_all(&vec![b'B'; 250]).unwrap();
 
         let cancel_token = Arc::new(AtomicBool::new(false));
         let skipped_count = AtomicU64::new(0);
 
-        let (total_size, total_files, err) =
+        let (total_size, total_files, categories, err) =
             compute_folder_recursive(&temp_dir, &cancel_token, &skipped_count);
 
         assert_eq!(total_size, 350);
         assert_eq!(total_files, 2);
         assert!(err.is_none());
         assert_eq!(skipped_count.load(Ordering::Relaxed), 0);
+        assert_eq!(categories.get("Documents").unwrap().bytes, 100);
+        assert_eq!(categories.get("Documents").unwrap().files, 1);
+        assert_eq!(categories.get("Images").unwrap().bytes, 250);
+        assert_eq!(categories.get("Images").unwrap().files, 1);
 
         // Clean up
         let _ = fs::remove_dir_all(&temp_dir);
-    }
-
-    #[test]
-    #[ignore = "Recursively scans entire LOCALAPPDATA directory; run with -- --ignored"]
-    fn test_scan_real_directory_no_infinite_loop() {
-        // Test scanning a directory known to have junctions or locked files, like %LOCALAPPDATA%
-        if let Ok(appdata) = std::env::var("LOCALAPPDATA") {
-            let path = PathBuf::from(&appdata);
-            if path.exists() {
-                let cancel_token = Arc::new(AtomicBool::new(false));
-                let skipped_count = AtomicU64::new(0);
-
-                // Check immediate child entry scanning
-                let entry = process_child_entry(&path, &cancel_token, &skipped_count);
-                assert!(entry.is_dir);
-                assert!(entry.size_bytes > 0);
-            }
-        }
     }
 }

@@ -1,12 +1,32 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { invoke, Channel } from "@tauri-apps/api/core";
 import {
+  CategoryStat,
   FolderChildEntry,
   ScanEvent,
   ScanResult,
   ScanStatus,
   ScanSummary,
 } from "@/types/scan";
+
+function mergeCategories(
+  target: Record<string, CategoryStat>,
+  incoming?: Record<string, CategoryStat>
+): Record<string, CategoryStat> {
+  if (!incoming) return target;
+  const next = { ...target };
+  for (const [cat, stat] of Object.entries(incoming)) {
+    if (!next[cat]) {
+      next[cat] = { bytes: stat.bytes, files: stat.files };
+    } else {
+      next[cat] = {
+        bytes: next[cat].bytes + stat.bytes,
+        files: next[cat].files + stat.files,
+      };
+    }
+  }
+  return next;
+}
 
 export function useScan() {
   const [state, setState] = useState<ScanStatus>("idle");
@@ -83,6 +103,7 @@ export function useScan() {
               totalChildren: event.totalChildren,
               elapsedMs: 0,
               skippedCount: 0,
+              categories: {},
             });
             break;
 
@@ -91,12 +112,19 @@ export function useScan() {
               const updated = [...prev, event.entry];
               // Live update running total
               const runningTotal = updated.reduce((acc, e) => acc + e.sizeBytes, 0);
-              setSummary((prevSummary) => ({
-                totalSize: runningTotal,
-                totalChildren: prevSummary?.totalChildren || updated.length,
-                elapsedMs: prevSummary?.elapsedMs || 0,
-                skippedCount: prevSummary?.skippedCount || 0,
-              }));
+              setSummary((prevSummary) => {
+                const nextCategories = mergeCategories(
+                  prevSummary?.categories || {},
+                  event.entry.categories
+                );
+                return {
+                  totalSize: runningTotal,
+                  totalChildren: prevSummary?.totalChildren || updated.length,
+                  elapsedMs: prevSummary?.elapsedMs || 0,
+                  skippedCount: prevSummary?.skippedCount || 0,
+                  categories: nextCategories,
+                };
+              });
               return updated;
             });
             break;
@@ -107,6 +135,7 @@ export function useScan() {
               totalChildren: prevSummary?.totalChildren || 0,
               elapsedMs: event.elapsedMs,
               skippedCount: event.skippedCount,
+              categories: event.categories,
             }));
             setState("done");
             break;
@@ -135,12 +164,18 @@ export function useScan() {
             totalChildren: result.entries.length,
             elapsedMs: result.elapsedMs,
             skippedCount: result.skippedCount,
+            categories: result.categories,
           });
           setState("done");
         }
       } catch (err: unknown) {
         if (scanId === currentScanIdRef.current) {
-          const message = typeof err === "string" ? err : err instanceof Error ? err.message : String(err);
+          const message =
+            typeof err === "string"
+              ? err
+              : err instanceof Error
+              ? err.message
+              : String(err);
           // If cancelled, do not treat as a hard error
           if (message.toLowerCase().includes("cancelled")) {
             setState("idle");

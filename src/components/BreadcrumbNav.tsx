@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Folder, HardDrive } from "lucide-react";
+import { HardDrive } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -8,6 +8,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { FileIcon } from "@/components/file-icon";
 
 interface BreadcrumbNavProps {
   currentPath: string;
@@ -29,9 +30,10 @@ export function BreadcrumbNav({
   const segments: PathSegment[] = useMemo(() => {
     if (!currentPath) return [];
 
-    const isWindows = currentPath.includes("\\") || /^[a-zA-Z]:/.test(currentPath);
+    const isWindows =
+      currentPath.includes("\\") || /^[a-zA-Z]:/.test(currentPath);
     const separator = isWindows ? "\\" : "/";
-    const parts = currentPath.split(/[/\\]+/).filter(Boolean);
+    const parts = currentPath.split(/[/\\\\]+/).filter(Boolean);
 
     if (parts.length === 0) return [];
 
@@ -84,25 +86,42 @@ export function BreadcrumbNav({
           {segments.map((seg, idx) => {
             const isDrive = idx === 0 && seg.name.includes(":");
             return (
-              <span key={seg.fullPath} className="inline-flex items-center gap-1.5">
+              <span
+                key={seg.fullPath}
+                className="inline-flex items-center gap-1.5"
+              >
                 <BreadcrumbItem>
                   {seg.isLast ? (
-                    <BreadcrumbPage className="font-semibold text-foreground flex items-center gap-1">
+                    <BreadcrumbPage className="font-semibold text-foreground flex items-center gap-1.5">
                       {isDrive ? (
                         <HardDrive className="w-3.5 h-3.5 text-blue-500" />
                       ) : (
-                        <Folder className="w-3.5 h-3.5 text-amber-500" />
+                        <FileIcon
+                          name={seg.name}
+                          isDir={true}
+                          isOpen={true}
+                          size={15}
+                        />
                       )}
                       <span>{seg.name}</span>
                     </BreadcrumbPage>
                   ) : (
                     <BreadcrumbLink
                       onClick={() => !disabled && onNavigate(seg.fullPath)}
-                      className={`hover:text-primary transition-colors flex items-center gap-1 ${
+                      className={`hover:text-primary transition-colors flex items-center gap-1.5 ${
                         disabled ? "pointer-events-none opacity-50" : ""
                       }`}
                     >
-                      {isDrive && <HardDrive className="w-3.5 h-3.5 text-blue-500" />}
+                      {isDrive ? (
+                        <HardDrive className="w-3.5 h-3.5 text-blue-500" />
+                      ) : (
+                        <FileIcon
+                          name={seg.name}
+                          isDir={true}
+                          isOpen={false}
+                          size={15}
+                        />
+                      )}
                       <span>{seg.name}</span>
                     </BreadcrumbLink>
                   )}

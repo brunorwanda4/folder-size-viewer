@@ -4,6 +4,7 @@ import { AlertCircle } from "lucide-react";
 import { Header } from "@/components/Header";
 import { PathInputCard } from "@/components/PathInputCard";
 import { SummaryCards } from "@/components/SummaryCards";
+import { ChartsSection } from "@/components/charts/charts-section";
 import { BreadcrumbNav } from "@/components/BreadcrumbNav";
 import { ResultsTable } from "@/components/ResultsTable";
 import { Toaster } from "@/components/ui/sonner";
@@ -80,31 +81,42 @@ export default function App() {
           </div>
         )}
 
-        {/* Summary Metrics Row */}
-        <SummaryCards
-          summary={summary}
-          scanState={state}
-          itemsCount={entries.length}
-        />
-
-        {/* Breadcrumb Navigation for Parent Folders */}
-        {currentPath && (
-          <BreadcrumbNav
-            currentPath={currentPath}
-            onNavigate={start}
-            disabled={state === "scanning"}
+        {/* Scrollable Main Workspace to accommodate Charts and Results */}
+        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto gap-3.5 pr-0.5">
+          {/* Summary Metrics Row */}
+          <SummaryCards
+            summary={summary}
+            scanState={state}
+            itemsCount={entries.length}
           />
-        )}
 
-        {/* Results Table */}
-        <ResultsTable
-          entries={entries}
-          summary={summary}
-          scanState={state}
-          totalChildrenExpected={totalChildrenExpected}
-          onDrillDown={start}
-          onItemDeleted={removeEntry}
-        />
+          {/* Collapsible Charts Section */}
+          <ChartsSection
+            entries={entries}
+            summary={summary}
+            scanState={state}
+            onDrillDown={start}
+          />
+
+          {/* Breadcrumb Navigation for Parent Folders */}
+          {currentPath && (
+            <BreadcrumbNav
+              currentPath={currentPath}
+              onNavigate={start}
+              disabled={state === "scanning"}
+            />
+          )}
+
+          {/* Results Table / Cards View with Controls */}
+          <ResultsTable
+            entries={entries}
+            summary={summary}
+            scanState={state}
+            totalChildrenExpected={totalChildrenExpected}
+            onDrillDown={start}
+            onItemDeleted={removeEntry}
+          />
+        </div>
 
         {/* Toast Container */}
         <Toaster position="bottom-right" />
