@@ -20,6 +20,7 @@ export default function App() {
     totalChildrenExpected,
     start,
     cancel,
+    removeEntry,
   } = useScan();
 
   // Toast on scan completion or error
@@ -80,6 +81,7 @@ export default function App() {
           scanState={state}
           totalChildrenExpected={totalChildrenExpected}
           onDrillDown={start}
+          onItemDeleted={removeEntry}
         />
 
         {/* Toast Container */}

@@ -72,3 +72,48 @@ pub fn get_default_paths() -> DefaultPaths {
         downloads: dirs::download_dir().map(|p| p.to_string_lossy().to_string()),
     }
 }
+
+#[tauri::command]
+pub async fn delete_item(path: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let p = std::path::Path::new(&path);
+        if !p.exists() {
+            return Err("Target path does not exist or has already been deleted.".to_string());
+        }
+
+        fn make_writable(path: &std::path::Path) {
+            if let Ok(metadata) = std::fs::metadata(path) {
+                let mut perms = metadata.permissions();
+                if perms.readonly() {
+                    perms.set_readonly(false);
+                    let _ = std::fs::set_permissions(path, perms);
+                }
+            }
+        }
+
+        fn remove_dir_all_recursive(dir: &std::path::Path) -> std::io::Result<()> {
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    let entry_path = entry.path();
+                    if entry_path.is_dir() {
+                        let _ = remove_dir_all_recursive(&entry_path);
+                    } else {
+                        make_writable(&entry_path);
+                        let _ = std::fs::remove_file(&entry_path);
+                    }
+                }
+            }
+            make_writable(dir);
+            std::fs::remove_dir_all(dir)
+        }
+
+        if p.is_dir() {
+            remove_dir_all_recursive(p).map_err(|e| format!("Failed to delete folder: {}", e))
+        } else {
+            make_writable(p);
+            std::fs::remove_file(p).map_err(|e| format!("Failed to delete file: {}", e))
+        }
+    })
+    .await
+    .map_err(|e| format!("Task execution error: {}", e))?
+}

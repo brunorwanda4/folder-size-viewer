@@ -28,6 +28,18 @@ export function useScan() {
     setState((prev) => (prev === "scanning" ? "idle" : prev));
   }, []);
 
+  const removeEntry = useCallback((targetPath: string, sizeBytes: number) => {
+    setEntries((prev) => prev.filter((e) => e.path !== targetPath));
+    setSummary((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        totalSize: Math.max(0, prev.totalSize - sizeBytes),
+        totalChildren: Math.max(0, prev.totalChildren - 1),
+      };
+    });
+  }, []);
+
   const start = useCallback(
     async (targetPath: string) => {
       const trimmed = targetPath.trim();
@@ -139,7 +151,7 @@ export function useScan() {
         }
       }
     },
-    [entries.length]
+    []
   );
 
   // Clean up ongoing scan when unmounting
@@ -159,5 +171,6 @@ export function useScan() {
     totalChildrenExpected,
     start,
     cancel,
+    removeEntry,
   };
 }

@@ -8,6 +8,9 @@ import {
   ArrowDown,
   Copy,
   ExternalLink,
+  Trash2,
+  AlertTriangle,
+  Loader2,
   Search,
   AlertCircle,
   Inbox,
@@ -38,6 +41,15 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   FolderChildEntry,
   ItemTypeFilter,
   ScanStatus,
@@ -53,6 +65,7 @@ interface ResultsTableProps {
   scanState: ScanStatus;
   totalChildrenExpected: number;
   onDrillDown: (folderPath: string) => void;
+  onItemDeleted?: (path: string, sizeBytes: number) => void;
 }
 
 export function ResultsTable({
@@ -61,11 +74,16 @@ export function ResultsTable({
   scanState,
   totalChildrenExpected,
   onDrillDown,
+  onItemDeleted,
 }: ResultsTableProps) {
   const [filterType, setFilterType] = useState<ItemTypeFilter>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortField, setSortField] = useState<SortField>("size");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+
+  // Deletion modal state
+  const [itemToDelete, setItemToDelete] = useState<FolderChildEntry | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const isScanning = scanState === "scanning";
   const totalSize = summary?.totalSize ?? 0;
@@ -145,9 +163,47 @@ export function ResultsTable({
     }
   };
 
+  const handleDeleteClick = (e: React.MouseEvent, entry: FolderChildEntry) => {
+    e.stopPropagation();
+    setItemToDelete(entry);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
+    try {
+      await invoke("delete_item", { path: itemToDelete.path });
+      toast.success(
+        `${itemToDelete.isDir ? "Folder" : "File"} deleted successfully`,
+        {
+          description: `"${itemToDelete.name}" was permanently removed.`,
+        }
+      );
+      onItemDeleted?.(itemToDelete.path, itemToDelete.sizeBytes);
+      setItemToDelete(null);
+    } catch (err: unknown) {
+      const errorMsg =
+        typeof err === "string"
+          ? err
+          : err instanceof Error
+          ? err.message
+          : String(err);
+      toast.error(
+        `Failed to delete ${itemToDelete.isDir ? "folder" : "file"}`,
+        {
+          description: errorMsg,
+        }
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const renderSortIndicator = (field: SortField) => {
     if (sortField !== field) {
-      return <ArrowUpDown className="w-3.5 h-3.5 ml-1 opacity-40 group-hover:opacity-80" />;
+      return (
+        <ArrowUpDown className="w-3.5 h-3.5 ml-1 opacity-40 group-hover:opacity-80" />
+      );
     }
     return sortOrder === "asc" ? (
       <ArrowUp className="w-3.5 h-3.5 ml-1 text-primary" />
@@ -157,9 +213,10 @@ export function ResultsTable({
   };
 
   // Progress percentage during active scan
-  const progressPercent = totalChildrenExpected > 0
-    ? Math.min(100, Math.round((entries.length / totalChildrenExpected) * 100))
-    : 0;
+  const progressPercent =
+    totalChildrenExpected > 0
+      ? Math.min(100, Math.round((entries.length / totalChildrenExpected) * 100))
+      : 0;
 
   return (
     <div className="flex flex-col flex-1 min-h-0 border border-border/70 rounded-xl bg-card/60 backdrop-blur-sm shadow-sm overflow-hidden">
@@ -197,7 +254,8 @@ export function ResultsTable({
           </ToggleGroup>
 
           <span className="text-xs text-muted-foreground font-mono pl-1">
-            {displayedEntries.length} {displayedEntries.length === 1 ? "item" : "items"}
+            {displayedEntries.length}{" "}
+            {displayedEntries.length === 1 ? "item" : "items"}
           </span>
         </div>
       </div>
@@ -211,7 +269,8 @@ export function ResultsTable({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
               </span>
-              Scanning in progress ({entries.length} of {totalChildrenExpected || "..."} items processed)
+              Scanning in progress ({entries.length} of{" "}
+              {totalChildrenExpected || "..."} items processed)
             </span>
             <span className="font-mono">{progressPercent}%</span>
           </div>
@@ -258,7 +317,7 @@ export function ResultsTable({
                   {renderSortIndicator("modified")}
                 </div>
               </TableHead>
-              <TableHead className="w-24 text-center text-foreground font-semibold">
+              <TableHead className="w-28 text-center text-foreground font-semibold">
                 Actions
               </TableHead>
             </TableRow>
@@ -267,7 +326,10 @@ export function ResultsTable({
           <TableBody>
             {displayedEntries.length === 0 && !isScanning ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-48 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={7}
+                  className="h-48 text-center text-muted-foreground"
+                >
                   <div className="flex flex-col items-center justify-center gap-2">
                     <Inbox className="w-8 h-8 opacity-40" />
                     <p className="font-medium text-sm">No items found</p>
@@ -282,9 +344,10 @@ export function ResultsTable({
             ) : (
               displayedEntries.map((entry) => {
                 const rank = topThreePaths.get(entry.path);
-                const percent = totalSize > 0
-                  ? Math.min(100, (entry.sizeBytes / totalSize) * 100)
-                  : 0;
+                const percent =
+                  totalSize > 0
+                    ? Math.min(100, (entry.sizeBytes / totalSize) * 100)
+                    : 0;
 
                 return (
                   <TableRow
@@ -320,17 +383,26 @@ export function ResultsTable({
                         </span>
 
                         {rank === 1 && (
-                          <Badge variant="rank1" className="text-[10px] px-1.5 py-0 shrink-0">
+                          <Badge
+                            variant="rank1"
+                            className="text-[10px] px-1.5 py-0 shrink-0"
+                          >
                             #1 Largest
                           </Badge>
                         )}
                         {rank === 2 && (
-                          <Badge variant="rank2" className="text-[10px] px-1.5 py-0 shrink-0">
+                          <Badge
+                            variant="rank2"
+                            className="text-[10px] px-1.5 py-0 shrink-0"
+                          >
                             #2 Largest
                           </Badge>
                         )}
                         {rank === 3 && (
-                          <Badge variant="rank3" className="text-[10px] px-1.5 py-0 shrink-0">
+                          <Badge
+                            variant="rank3"
+                            className="text-[10px] px-1.5 py-0 shrink-0"
+                          >
                             #3 Largest
                           </Badge>
                         )}
@@ -375,7 +447,9 @@ export function ResultsTable({
                       <div className="flex items-center gap-2">
                         <Progress value={percent} className="h-2 flex-1" />
                         <span className="text-[11px] font-mono text-muted-foreground w-11 text-right shrink-0">
-                          {percent < 0.1 && percent > 0 ? "<0.1%" : `${percent.toFixed(1)}%`}
+                          {percent < 0.1 && percent > 0
+                            ? "<0.1%"
+                            : `${percent.toFixed(1)}%`}
                         </span>
                       </div>
                     </TableCell>
@@ -391,7 +465,10 @@ export function ResultsTable({
                     </TableCell>
 
                     {/* Actions column */}
-                    <TableCell className="text-center p-2.5" onClick={(e) => e.stopPropagation()}>
+                    <TableCell
+                      className="text-center p-2.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className="flex items-center justify-center gap-1">
                         <TooltipProvider>
                           <Tooltip>
@@ -399,11 +476,11 @@ export function ResultsTable({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 rounded-md hover:bg-muted"
+                                className="h-7 w-7 rounded-md hover:bg-muted text-muted-foreground"
                                 onClick={(e) => handleCopyPath(e, entry.path)}
                                 aria-label="Copy path"
                               >
-                                <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                                <Copy className="w-3.5 h-3.5" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
@@ -418,15 +495,38 @@ export function ResultsTable({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 rounded-md hover:bg-muted"
+                                className="h-7 w-7 rounded-md hover:bg-muted text-muted-foreground"
                                 onClick={(e) => handleReveal(e, entry.path)}
                                 aria-label="Show in Explorer"
                               >
-                                <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+                                <ExternalLink className="w-3.5 h-3.5" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p className="text-xs">Reveal in Explorer</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-md hover:bg-destructive/15 text-muted-foreground hover:text-destructive transition-colors"
+                                onClick={(e) => handleDeleteClick(e, entry)}
+                                aria-label={
+                                  entry.isDir ? "Delete folder" : "Delete file"
+                                }
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs text-destructive font-medium">
+                                {entry.isDir ? "Delete folder" : "Delete file"}
+                              </p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -461,7 +561,7 @@ export function ResultsTable({
                       <Skeleton className="h-4 w-24 rounded" />
                     </TableCell>
                     <TableCell className="p-2.5 text-center">
-                      <Skeleton className="h-6 w-14 mx-auto rounded" />
+                      <Skeleton className="h-6 w-20 mx-auto rounded" />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -470,6 +570,109 @@ export function ResultsTable({
           </TableBody>
         </Table>
       </ScrollArea>
+
+      {/* Confirmation Dialog to Prevent Mistakes */}
+      <AlertDialog
+        open={!!itemToDelete}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) {
+            setItemToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-destructive/10 text-destructive shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <AlertDialogTitle className="text-base sm:text-lg">
+                  Delete {itemToDelete?.isDir ? "Folder" : "File"}?
+                </AlertDialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Please verify this is not a mistake
+                </p>
+              </div>
+            </div>
+
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-2 text-foreground">
+                <p className="text-sm">
+                  Are you sure you want to delete this{" "}
+                  <span className="font-semibold text-foreground">
+                    {itemToDelete?.isDir ? "folder" : "file"}
+                  </span>
+                  ? This action is permanent and cannot be undone.
+                </p>
+
+                {itemToDelete && (
+                  <div className="rounded-lg border border-border/80 bg-muted/40 p-3 space-y-2 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5 font-medium truncate">
+                        {itemToDelete.isDir ? (
+                          <Folder className="w-4 h-4 text-amber-500 shrink-0" />
+                        ) : (
+                          <File className="w-4 h-4 text-blue-500 shrink-0" />
+                        )}
+                        <span className="truncate font-semibold text-foreground">
+                          {itemToDelete.name}
+                        </span>
+                      </div>
+                      <Badge variant="outline" className="shrink-0 text-[10px]">
+                        {formatBytes(itemToDelete.sizeBytes)}
+                      </Badge>
+                    </div>
+
+                    <div className="text-muted-foreground font-mono text-[11px] break-all bg-background/60 p-2 rounded border border-border/50 max-h-20 overflow-y-auto select-text">
+                      {itemToDelete.path}
+                    </div>
+
+                    {itemToDelete.isDir && itemToDelete.fileCount > 0 && (
+                      <div className="text-muted-foreground text-[11px]">
+                        Contains{" "}
+                        <span className="font-semibold text-foreground">
+                          {formatNumber(itemToDelete.fileCount)}
+                        </span>{" "}
+                        files
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="p-2.5 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>
+                    Warning: This item will be permanently removed from disk.
+                  </span>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter className="gap-2 sm:gap-0 mt-2">
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="gap-1.5"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  <span>Yes, Delete</span>
+                </>
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

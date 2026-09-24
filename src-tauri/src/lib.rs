@@ -15,6 +15,7 @@ pub fn run() {
             commands::cancel_scan,
             commands::reveal_in_explorer,
             commands::get_default_paths,
+            commands::delete_item,
         ])
         .run(tauri::generate_context!())
         .expect("error while running folder size viewer application");
