@@ -66,6 +66,29 @@ export default function App() {
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, []);
 
+	// Prompt to build index when entering search tab if empty
+	const hasPromptedIndexRef = useRef(false);
+	useEffect(() => {
+		if (
+			activeTab === "search" &&
+			!hasPromptedIndexRef.current &&
+			indexing.status &&
+			indexing.status.docCount === 0 &&
+			!indexing.status.isIndexing
+		) {
+			hasPromptedIndexRef.current = true;
+			toast.info("Search Index Empty", {
+				description:
+					"Build the search index to quickly find files anywhere on your computer.",
+				action: {
+					label: "Build Index",
+					onClick: () => indexing.startIndexing(false),
+				},
+				duration: 8000,
+			});
+		}
+	}, [activeTab, indexing.status, indexing.startIndexing]);
+
 	// Notifications on scan completion or error
 	const prevScanStateRef = useRef(state);
 	useEffect(() => {

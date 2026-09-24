@@ -25,6 +25,14 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   FolderPlus,
   Trash2,
   RefreshCw,
@@ -34,6 +42,8 @@ import {
   FileText,
   AlertTriangle,
   Plus,
+  FolderOpen,
+  File,
 } from 'lucide-react';
 import { formatBytes, formatDate } from '@/lib/format';
 import type { SearchSettings, IndexStatus } from '@/types/search';
@@ -59,6 +69,8 @@ export function SearchSettingsSheet({
 }: SearchSettingsSheetProps) {
   const [settings, setSettings] = useState<SearchSettings | null>(null);
   const [newExclusion, setNewExclusion] = useState('');
+  const [isExclusionDialogOpen, setIsExclusionDialogOpen] = useState(false);
+  const [dialogExclusionPath, setDialogExclusionPath] = useState('');
 
   const loadSettings = useCallback(async () => {
     try {
@@ -132,21 +144,36 @@ export function SearchSettingsSheet({
     await saveSettings(updated);
   };
 
-  const handleAddExclusion = async () => {
-    const val = newExclusion.trim();
-    if (!val || !settings) return;
+  const addExclusionItem = async (val: string): Promise<boolean> => {
+    const trimmed = val.trim();
+    if (!trimmed || !settings) return false;
 
-    if (settings.exclusions.includes(val)) {
-      setNewExclusion('');
-      return;
+    if (settings.exclusions.some((ex) => ex.toLowerCase() === trimmed.toLowerCase())) {
+      toast.info(`"${trimmed}" is already in the exclusion list`);
+      return false;
     }
 
     const updated: SearchSettings = {
       ...settings,
-      exclusions: [...settings.exclusions, val],
+      exclusions: [...settings.exclusions, trimmed],
     };
     await saveSettings(updated);
-    setNewExclusion('');
+    toast.success(`Added "${trimmed}" to exclusions`);
+    return true;
+  };
+
+  const handleAddExclusion = async () => {
+    const val = newExclusion.trim();
+    if (!val) {
+      setDialogExclusionPath('');
+      setIsExclusionDialogOpen(true);
+      return;
+    }
+
+    const success = await addExclusionItem(val);
+    if (success) {
+      setNewExclusion('');
+    }
   };
 
   const handleRemoveExclusion = async (valToRemove: string) => {
@@ -156,6 +183,73 @@ export function SearchSettingsSheet({
       exclusions: settings.exclusions.filter((e) => e !== valToRemove),
     };
     await saveSettings(updated);
+  };
+
+  const handleBrowseFolderForExclusion = async () => {
+    try {
+      const selected = await openDialog({
+        directory: true,
+        multiple: true,
+        title: 'Select Folder(s) to Exclude',
+      });
+
+      if (!selected) return;
+
+      if (Array.isArray(selected) && selected.length > 0) {
+        if (selected.length === 1) {
+          setDialogExclusionPath(selected[0]);
+        } else {
+          for (const item of selected) {
+            await addExclusionItem(item);
+          }
+          setIsExclusionDialogOpen(false);
+          setDialogExclusionPath('');
+        }
+      } else if (typeof selected === 'string') {
+        setDialogExclusionPath(selected);
+      }
+    } catch (err) {
+      console.error('Failed to pick folder for exclusion:', err);
+    }
+  };
+
+  const handleBrowseFileForExclusion = async () => {
+    try {
+      const selected = await openDialog({
+        directory: false,
+        multiple: true,
+        title: 'Select File(s) to Exclude',
+      });
+
+      if (!selected) return;
+
+      if (Array.isArray(selected) && selected.length > 0) {
+        if (selected.length === 1) {
+          setDialogExclusionPath(selected[0]);
+        } else {
+          for (const item of selected) {
+            await addExclusionItem(item);
+          }
+          setIsExclusionDialogOpen(false);
+          setDialogExclusionPath('');
+        }
+      } else if (typeof selected === 'string') {
+        setDialogExclusionPath(selected);
+      }
+    } catch (err) {
+      console.error('Failed to pick file for exclusion:', err);
+    }
+  };
+
+  const handleConfirmDialogAdd = async () => {
+    const val = dialogExclusionPath.trim();
+    if (!val) return;
+
+    const success = await addExclusionItem(val);
+    if (success) {
+      setDialogExclusionPath('');
+      setIsExclusionDialogOpen(false);
+    }
   };
 
   const handleMaxContentSizeChange = async (mb: number) => {
@@ -321,13 +415,28 @@ export function SearchSettingsSheet({
 
         {/* Exclusions Editor */}
         <div className="space-y-4 mb-6">
-          <h3 className="text-sm font-semibold flex items-center gap-1.5">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            Excluded Folder Names
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              Excluded Folders & Files
+            </h3>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setDialogExclusionPath(newExclusion.trim());
+                setIsExclusionDialogOpen(true);
+              }}
+            >
+              <FolderOpen className="h-3.5 w-3.5 mr-1" />
+              Browse...
+            </Button>
+          </div>
+
           <div className="flex gap-2">
             <Input
-              placeholder="e.g. node_modules, .git, target..."
+              placeholder="e.g. node_modules, .git, target, C:\path..."
               value={newExclusion}
               onChange={(e) => setNewExclusion(e.target.value)}
               onKeyDown={(e) => {
@@ -341,6 +450,19 @@ export function SearchSettingsSheet({
             <Button size="sm" onClick={handleAddExclusion} className="h-8 shrink-0">
               <Plus className="h-3.5 w-3.5 mr-1" />
               Add
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setDialogExclusionPath(newExclusion.trim());
+                setIsExclusionDialogOpen(true);
+              }}
+              className="h-8 shrink-0"
+              title="Select folder or file to exclude"
+            >
+              <FolderOpen className="h-3.5 w-3.5 mr-1" />
+              Browse
             </Button>
           </div>
 
@@ -362,6 +484,11 @@ export function SearchSettingsSheet({
                 </button>
               </Badge>
             ))}
+            {(!settings || settings.exclusions.length === 0) && (
+              <div className="text-xs text-muted-foreground py-1 px-2">
+                No exclusions configured.
+              </div>
+            )}
           </div>
         </div>
 
@@ -399,6 +526,117 @@ export function SearchSettingsSheet({
           </div>
         </div>
       </SheetContent>
+
+      {/* Add Exclusion Dialog */}
+      <Dialog open={isExclusionDialogOpen} onOpenChange={setIsExclusionDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <FolderPlus className="h-5 w-5 text-primary" />
+              Add Exclusion Rule
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Exclude a folder, file, or pattern from being indexed and searched.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Quick Picker Options */}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex items-center justify-start gap-2.5 h-14 p-3 border-dashed hover:border-primary hover:bg-primary/5 transition-colors"
+                onClick={handleBrowseFolderForExclusion}
+              >
+                <FolderOpen className="h-5 w-5 text-amber-500 shrink-0" />
+                <div className="text-left min-w-0">
+                  <div className="text-xs font-medium leading-none">Select Folder</div>
+                  <div className="text-[10px] text-muted-foreground mt-1 truncate">Pick folder to ignore</div>
+                </div>
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="flex items-center justify-start gap-2.5 h-14 p-3 border-dashed hover:border-primary hover:bg-primary/5 transition-colors"
+                onClick={handleBrowseFileForExclusion}
+              >
+                <File className="h-5 w-5 text-blue-500 shrink-0" />
+                <div className="text-left min-w-0">
+                  <div className="text-xs font-medium leading-none">Select File</div>
+                  <div className="text-[10px] text-muted-foreground mt-1 truncate">Pick file to ignore</div>
+                </div>
+              </Button>
+            </div>
+
+            {/* Path / Name Input */}
+            <div className="space-y-1.5">
+              <label htmlFor="dialog-exclusion-input" className="text-xs font-medium text-foreground">
+                Folder Name, File Path, or Pattern
+              </label>
+              <Input
+                id="dialog-exclusion-input"
+                placeholder="e.g. node_modules, .git, C:\path\to\ignore, *.log..."
+                value={dialogExclusionPath}
+                onChange={(e) => setDialogExclusionPath(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleConfirmDialogAdd();
+                  }
+                }}
+                className="h-9 text-xs font-mono"
+                autoFocus
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Matches any indexed path containing this text or specific file/folder location.
+              </p>
+            </div>
+
+            {/* Common Presets */}
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-medium text-muted-foreground">
+                Quick Presets:
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {['node_modules', '.git', 'target', 'dist', 'build', '.cache', 'vendor', '.next', '*.log', '.env*'].map(
+                  (preset) => (
+                    <Badge
+                      key={preset}
+                      variant="outline"
+                      className="cursor-pointer text-[11px] font-mono hover:bg-secondary hover:text-foreground transition-colors"
+                      onClick={() => setDialogExclusionPath(preset)}
+                    >
+                      {preset}
+                    </Badge>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsExclusionDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleConfirmDialogAdd}
+              disabled={!dialogExclusionPath.trim()}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add Exclusion
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }

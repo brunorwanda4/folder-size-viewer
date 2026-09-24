@@ -186,6 +186,72 @@ fn test_scoped_search_and_phrase_search() {
 }
 
 #[test]
+fn test_chatgpt_image_search() {
+    let app_dir = tempdir().unwrap();
+    let data_dir = tempdir().unwrap();
+
+    let img_name = "ChatGPT Image Sep 24, 2026, 03_26_21 AM.png";
+    let img_path = data_dir.path().join(img_name);
+    File::create(&img_path).unwrap();
+
+    let manager = IndexManager::open_or_create(app_dir.path()).unwrap();
+
+    let settings = SearchSettings {
+        roots: vec![IndexRoot {
+            path: data_dir.path().to_string_lossy().to_string(),
+            index_content: false,
+        }],
+        exclusions: vec![],
+        max_content_size_mb: 2,
+        writer_memory_budget_mb: 30,
+        content_extensions: vec![],
+    };
+
+    let on_event = Channel::new(|_| Ok(()));
+    let cancel = Arc::new(AtomicBool::new(false));
+    let pause = Arc::new(AtomicBool::new(false));
+
+    let indexed = run_indexing(
+        &manager,
+        &settings,
+        true,
+        &on_event,
+        cancel.clone(),
+        pause.clone(),
+    )
+    .unwrap();
+    assert!(indexed >= 1);
+
+    let searcher = manager.reader.searcher();
+
+    // User query: "ChatGPT Image Sep 24, 2026, 03_26_21 AM"
+    let params = SearchParams {
+        query: "ChatGPT Image Sep 24, 2026, 03_26_21 AM".to_string(),
+        scope: "computer".to_string(),
+        current_path: None,
+        mode: "both".to_string(),
+        filter_type: None,
+        filter_category: None,
+        limit: Some(10),
+        offset: Some(0),
+    };
+
+    let res = execute_search(
+        &manager.index,
+        &searcher,
+        &manager.fields,
+        params,
+        &settings.content_extensions,
+        settings.max_content_size_mb,
+    )
+    .unwrap();
+
+    println!("Hits: {:?}", res.hits);
+    assert_eq!(res.total, 1);
+    assert_eq!(res.hits[0].name, img_name);
+}
+
+#[test]
 fn test_incremental_update_add_modify_delete() {
     let app_dir = tempdir().unwrap();
     let data_dir = tempdir().unwrap();

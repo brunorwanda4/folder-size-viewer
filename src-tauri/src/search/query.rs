@@ -51,6 +51,33 @@ pub struct SearchParams {
     pub offset: Option<usize>,
 }
 
+/// Preprocesses the user query before passing to Tantivy QueryParser:
+/// - Replaces colons in non-field terms (e.g. timestamps like "03:26:21" or Windows drive paths)
+///   so Tantivy does not treat them as nonexistent schema field names.
+/// - Keeps valid field specifiers like `name:`, `content:`, `ext:`, `path:`, `dir:`, `category:`.
+pub fn sanitize_query(raw: &str) -> String {
+    let known_fields = ["name", "content", "ext", "path", "dir", "category"];
+    let mut words = Vec::new();
+
+    for word in raw.split_whitespace() {
+        if let Some((prefix, _suffix)) = word.split_once(':') {
+            let clean_prefix = prefix.trim_start_matches(['+', '-', '"', '\'', '(']);
+            if !known_fields
+                .iter()
+                .any(|&f| f.eq_ignore_ascii_case(clean_prefix))
+            {
+                // Not a known schema field: replace ':' with space so Tantivy doesn't fail parsing
+                let sanitized_word = word.replace(':', " ");
+                words.push(sanitized_word);
+                continue;
+            }
+        }
+        words.push(word.to_string());
+    }
+
+    words.join(" ")
+}
+
 pub fn execute_search(
     index: &Index,
     searcher: &Searcher,
@@ -69,6 +96,8 @@ pub fn execute_search(
             took_ms: start_time.elapsed().as_millis() as u64,
         });
     }
+
+    let sanitized_query_str = sanitize_query(query_str);
 
     let limit = params.limit.unwrap_or(50).max(1);
     let offset = params.offset.unwrap_or(0);
@@ -99,7 +128,7 @@ pub fn execute_search(
     query_parser.set_conjunction_by_default(); // Multiple terms mean AND
 
     // Lenient mode so half-typed input never errors
-    let (user_query, _errors) = query_parser.parse_query_lenient(query_str);
+    let (user_query, _errors) = query_parser.parse_query_lenient(&sanitized_query_str);
 
     // 2. Build BooleanQuery with scope & filter clauses
     let mut clauses: Vec<(Occur, Box<dyn Query>)> = vec![(Occur::Must, user_query.box_clone())];
@@ -171,7 +200,7 @@ pub fn execute_search(
     };
 
     // Query terms for filename highlighting
-    let query_terms = extract_search_terms(query_str);
+    let query_terms = extract_search_terms(&sanitized_query_str);
 
     let mut hits = Vec::with_capacity(top_docs.len());
     let max_bytes = max_content_size_mb * 1024 * 1024;
@@ -262,14 +291,14 @@ pub fn execute_search(
 fn extract_search_terms(query: &str) -> Vec<String> {
     let mut terms = Vec::new();
     for part in query.split_whitespace() {
-        let part = part.trim_matches(['"', '\'', '(', ')']);
+        let part = part.trim_matches(['"', '\'', '(', ')', ',', ';']);
         if part.is_empty() {
             continue;
         }
         // If it's a field query like name:foo or ext:pdf, extract the value
         if let Some((field, val)) = part.split_once(':') {
             if field == "ext" || field == "name" || field == "content" {
-                let v = val.trim_matches(['"', '\'']);
+                let v = val.trim_matches(['"', '\'', '(', ')', ',', ';']);
                 if !v.is_empty() {
                     terms.push(v.to_lowercase());
                 }
@@ -340,5 +369,12 @@ mod tests {
         let terms = vec!["app".to_string(), "data".to_string()];
         let ranges = find_matched_ranges("AppData_Local", &terms);
         assert_eq!(ranges, vec![[0, 3], [3, 7]]);
+    }
+
+    #[test]
+    fn test_sanitize_query_timestamps_and_drives() {
+        let q = "ChatGPT Image Sep 24, 2026, 03:26:21 AM ext:png";
+        let sanitized = sanitize_query(q);
+        assert_eq!(sanitized, "ChatGPT Image Sep 24, 2026, 03 26 21 AM ext:png");
     }
 }
