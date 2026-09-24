@@ -31,46 +31,49 @@ pub fn run() {
             let meta_file = engine.app_data_dir.join("index").join(SCHEMA_META_FILENAME);
             if meta_file.is_file() {
                 let engine_clone = Arc::clone(&engine);
-                tokio::task::spawn_blocking(move || {
-                    // Small delay to let the app initialize and display the UI first
-                    std::thread::sleep(Duration::from_millis(1500));
+                std::thread::Builder::new()
+                    .name("search-auto-indexer".into())
+                    .spawn(move || {
+                        // Small delay to let the app initialize and display the UI first
+                        std::thread::sleep(Duration::from_millis(1500));
 
-                    if engine_clone
-                        .is_indexing
-                        .swap(true, std::sync::atomic::Ordering::SeqCst)
-                    {
-                        return;
-                    }
-                    engine_clone
-                        .is_paused
-                        .store(false, std::sync::atomic::Ordering::SeqCst);
-                    engine_clone
-                        .cancel_token
-                        .store(false, std::sync::atomic::Ordering::SeqCst);
+                        if engine_clone
+                            .is_indexing
+                            .swap(true, std::sync::atomic::Ordering::SeqCst)
+                        {
+                            return;
+                        }
+                        engine_clone
+                            .is_paused
+                            .store(false, std::sync::atomic::Ordering::SeqCst);
+                        engine_clone
+                            .cancel_token
+                            .store(false, std::sync::atomic::Ordering::SeqCst);
 
-                    let settings = {
-                        let s = engine_clone.settings.lock().unwrap();
-                        s.clone()
-                    };
-                    let manager_guard = engine_clone.manager.lock().unwrap();
-                    if let Some(ref manager) = *manager_guard {
-                        let dummy_channel = tauri::ipc::Channel::new(|_| Ok(()));
-                        let _ = search::indexer::run_indexing(
-                            manager,
-                            &settings,
-                            false, // incremental update
-                            &dummy_channel,
-                            Arc::clone(&engine_clone.cancel_token),
-                            Arc::clone(&engine_clone.is_paused),
-                        );
-                    }
-                    engine_clone
-                        .is_indexing
-                        .store(false, std::sync::atomic::Ordering::SeqCst);
-                    engine_clone
-                        .is_paused
-                        .store(false, std::sync::atomic::Ordering::SeqCst);
-                });
+                        let settings = {
+                            let s = engine_clone.settings.lock().unwrap();
+                            s.clone()
+                        };
+                        let manager_guard = engine_clone.manager.lock().unwrap();
+                        if let Some(ref manager) = *manager_guard {
+                            let dummy_channel = tauri::ipc::Channel::new(|_| Ok(()));
+                            let _ = search::indexer::run_indexing(
+                                manager,
+                                &settings,
+                                false, // incremental update
+                                &dummy_channel,
+                                Arc::clone(&engine_clone.cancel_token),
+                                Arc::clone(&engine_clone.is_paused),
+                            );
+                        }
+                        engine_clone
+                            .is_indexing
+                            .store(false, std::sync::atomic::Ordering::SeqCst);
+                        engine_clone
+                            .is_paused
+                            .store(false, std::sync::atomic::Ordering::SeqCst);
+                    })
+                    .ok();
             }
 
             Ok(())
