@@ -143,42 +143,40 @@ function AppContent() {
 
 	return (
 		<div className="flex flex-col h-screen bg-background text-foreground antialiased overflow-hidden p-4 md:p-6 gap-3 select-none">
-			{/* Top Header */}
-			<Header onOpenSearchSettings={() => setSearchSettingsOpen(true)} />
-
-			{/* Workspace with Tabs */}
+			{/* Workspace with Tabs & Header in Center */}
 			<Tabs
 				value={activeTab}
 				onValueChange={(val) =>
 					setActiveTab(val as "disk-usage" | "search" | "errors")
 				}
-				className="flex-1 flex flex-col min-h-0"
+				className="flex-1 flex flex-col min-h-0 gap-3"
 			>
-				<div className="flex items-center justify-between pb-1 shrink-0">
-					<TabsList className="grid w-80 sm:w-96 grid-cols-3">
+				{/* Top Header with Centered Tabs to save vertical space */}
+				<Header onOpenSearchSettings={() => setSearchSettingsOpen(true)}>
+					<TabsList className="grid w-72 sm:w-96 grid-cols-3 h-8 p-0.5">
 						<TabsTrigger
 							value="disk-usage"
-							className="flex items-center gap-1.5"
+							className="flex items-center justify-center gap-1.5 text-xs py-1 h-7"
 						>
-							<PieChart className="h-4 w-4" />
-							Disk Usage
+							<PieChart className="h-3.5 w-3.5" />
+							<span>Disk Usage</span>
 						</TabsTrigger>
 						<TabsTrigger
 							value="search"
-							className="flex items-center gap-1.5"
+							className="flex items-center justify-center gap-1.5 text-xs py-1 h-7"
 						>
-							<Search className="h-4 w-4" />
-							Search
-							<kbd className="ml-1 hidden sm:inline-flex h-4 items-center rounded border bg-muted/60 px-1 font-mono text-[9px] text-muted-foreground">
+							<Search className="h-3.5 w-3.5" />
+							<span>Search</span>
+							<kbd className="ml-1 hidden sm:inline-flex h-3.5 items-center rounded border bg-muted/60 px-1 font-mono text-[9px] text-muted-foreground">
 								Ctrl+K
 							</kbd>
 						</TabsTrigger>
 						<TabsTrigger
 							value="errors"
-							className="flex items-center gap-1.5 relative"
+							className="flex items-center justify-center gap-1.5 relative text-xs py-1 h-7"
 						>
 							<AlertCircle
-								className={`h-4 w-4 ${
+								className={`h-3.5 w-3.5 ${
 									unresolvedCount > 0 ? "text-destructive" : ""
 								}`}
 							/>
@@ -186,14 +184,14 @@ function AppContent() {
 							{unresolvedCount > 0 && (
 								<Badge
 									variant="destructive"
-									className="ml-1 px-1.5 py-0 text-[10px] h-4"
+									className="ml-1 px-1 py-0 text-[9px] h-3.5 leading-none"
 								>
 									{unresolvedCount}
 								</Badge>
 							)}
 						</TabsTrigger>
 					</TabsList>
-				</div>
+				</Header>
 
 				{/* Disk Usage Tab */}
 				<TabsContent
