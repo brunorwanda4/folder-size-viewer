@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SearchView } from "@/components/search/search-view";
 import { SearchSettingsSheet } from "@/components/search/search-settings-sheet";
 import { IndexingStatusBar } from "@/components/search/indexing-status-bar";
+import { DeletionProvider } from "@/context/DeletionContext";
+import { BackgroundDeletionsWidget } from "@/components/BackgroundDeletionsWidget";
 import { useScan } from "@/hooks/useScan";
 import { useIndexing } from "@/hooks/useIndexing";
 import { toast } from "sonner";
@@ -94,131 +96,136 @@ export default function App() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-      <div className="flex flex-col h-screen bg-background text-foreground antialiased overflow-hidden p-4 md:p-6 gap-3 select-none">
-        {/* Top Header */}
-        <Header onOpenSearchSettings={() => setSearchSettingsOpen(true)} />
+      <DeletionProvider>
+        <div className="flex flex-col h-screen bg-background text-foreground antialiased overflow-hidden p-4 md:p-6 gap-3 select-none">
+          {/* Top Header */}
+          <Header onOpenSearchSettings={() => setSearchSettingsOpen(true)} />
 
-        {/* Workspace with Tabs */}
-        <Tabs
-          value={activeTab}
-          onValueChange={(val) => setActiveTab(val as "disk-usage" | "search")}
-          className="flex-1 flex flex-col min-h-0"
-        >
-          <div className="flex items-center justify-between pb-1 shrink-0">
-            <TabsList className="grid w-64 grid-cols-2">
-              <TabsTrigger value="disk-usage" className="flex items-center gap-1.5">
-                <PieChart className="h-4 w-4" />
-                Disk Usage
-              </TabsTrigger>
-              <TabsTrigger value="search" className="flex items-center gap-1.5">
-                <Search className="h-4 w-4" />
-                Search
-                <kbd className="ml-1 hidden sm:inline-flex h-4 items-center rounded border bg-muted/60 px-1 font-mono text-[9px] text-muted-foreground">
-                  Ctrl+K
-                </kbd>
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          {/* Disk Usage Tab */}
-          <TabsContent
-            value="disk-usage"
-            className="flex-1 flex flex-col min-h-0 overflow-hidden mt-0 gap-3 data-[state=inactive]:hidden"
+          {/* Workspace with Tabs */}
+          <Tabs
+            value={activeTab}
+            onValueChange={(val) => setActiveTab(val as "disk-usage" | "search")}
+            className="flex-1 flex flex-col min-h-0"
           >
-            {/* Path Input Card */}
-            <PathInputCard
-              currentPath={currentPath}
-              scanState={state}
-              onScan={start}
-              onCancel={cancel}
-            />
+            <div className="flex items-center justify-between pb-1 shrink-0">
+              <TabsList className="grid w-64 grid-cols-2">
+                <TabsTrigger value="disk-usage" className="flex items-center gap-1.5">
+                  <PieChart className="h-4 w-4" />
+                  Disk Usage
+                </TabsTrigger>
+                <TabsTrigger value="search" className="flex items-center gap-1.5">
+                  <Search className="h-4 w-4" />
+                  Search
+                  <kbd className="ml-1 hidden sm:inline-flex h-4 items-center rounded border bg-muted/60 px-1 font-mono text-[9px] text-muted-foreground">
+                    Ctrl+K
+                  </kbd>
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-            {/* Error Banner */}
-            {error && (
-              <div className="flex items-center gap-2.5 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm animate-fadeIn">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span className="flex-1 font-medium">{error}</span>
-              </div>
-            )}
-
-            {/* Scrollable Main Workspace to accommodate Charts and Results */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto gap-3.5 pr-0.5">
-              {/* Summary Metrics Row */}
-              <SummaryCards
-                summary={summary}
+            {/* Disk Usage Tab */}
+            <TabsContent
+              value="disk-usage"
+              className="flex-1 flex flex-col min-h-0 overflow-hidden mt-0 gap-3 data-[state=inactive]:hidden"
+            >
+              {/* Path Input Card */}
+              <PathInputCard
+                currentPath={currentPath}
                 scanState={state}
-                itemsCount={entries.length}
+                onScan={start}
+                onCancel={cancel}
               />
 
-              {/* Collapsible Charts Section */}
-              <ChartsSection
-                entries={entries}
-                summary={summary}
-                scanState={state}
-                onDrillDown={start}
-              />
-
-              {/* Breadcrumb Navigation for Parent Folders */}
-              {currentPath && (
-                <BreadcrumbNav
-                  currentPath={currentPath}
-                  onNavigate={start}
-                  disabled={state === "scanning"}
-                />
+              {/* Error Banner */}
+              {error && (
+                <div className="flex items-center gap-2.5 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm animate-fadeIn">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 font-medium">{error}</span>
+                </div>
               )}
 
-              {/* Results Table / Cards View with Controls */}
-              <ResultsTable
-                entries={entries}
-                summary={summary}
-                scanState={state}
-                totalChildrenExpected={totalChildrenExpected}
-                onDrillDown={start}
-                onItemDeleted={removeEntry}
+              {/* Scrollable Main Workspace to accommodate Charts and Results */}
+              <div className="flex-1 flex flex-col min-h-0 overflow-y-auto gap-3.5 pr-0.5">
+                {/* Summary Metrics Row */}
+                <SummaryCards
+                  summary={summary}
+                  scanState={state}
+                  itemsCount={entries.length}
+                />
+
+                {/* Collapsible Charts Section */}
+                <ChartsSection
+                  entries={entries}
+                  summary={summary}
+                  scanState={state}
+                  onDrillDown={start}
+                />
+
+                {/* Breadcrumb Navigation for Parent Folders */}
+                {currentPath && (
+                  <BreadcrumbNav
+                    currentPath={currentPath}
+                    onNavigate={start}
+                    disabled={state === "scanning"}
+                  />
+                )}
+
+                {/* Results Table / Cards View with Controls */}
+                <ResultsTable
+                  entries={entries}
+                  summary={summary}
+                  scanState={state}
+                  totalChildrenExpected={totalChildrenExpected}
+                  onDrillDown={start}
+                  onItemDeleted={removeEntry}
+                />
+              </div>
+            </TabsContent>
+
+            {/* Search Tab */}
+            <TabsContent
+              value="search"
+              className="flex-1 flex flex-col min-h-0 overflow-hidden mt-0 data-[state=inactive]:hidden"
+            >
+              <SearchView
+                currentFolderPath={currentPath}
+                status={indexing.status}
+                onStartIndexing={indexing.startIndexing}
+                onOpenSettings={() => setSearchSettingsOpen(true)}
+                onAnalyzeFolder={handleAnalyzeFolder}
+                inputRef={searchInputRef}
               />
-            </div>
-          </TabsContent>
+            </TabsContent>
+          </Tabs>
 
-          {/* Search Tab */}
-          <TabsContent
-            value="search"
-            className="flex-1 flex flex-col min-h-0 overflow-hidden mt-0 data-[state=inactive]:hidden"
-          >
-            <SearchView
-              currentFolderPath={currentPath}
-              status={indexing.status}
-              onStartIndexing={indexing.startIndexing}
-              onOpenSettings={() => setSearchSettingsOpen(true)}
-              onAnalyzeFolder={handleAnalyzeFolder}
-              inputRef={searchInputRef}
-            />
-          </TabsContent>
-        </Tabs>
+          {/* Slim Bottom Status Bar while Indexing */}
+          <IndexingStatusBar
+            status={indexing.status}
+            activeProgress={indexing.activeProgress}
+            isPaused={indexing.isPaused}
+            onPause={indexing.pauseIndexing}
+            onResume={indexing.resumeIndexing}
+            onCancel={indexing.cancelIndexing}
+          />
 
-        {/* Slim Bottom Status Bar while Indexing */}
-        <IndexingStatusBar
-          status={indexing.status}
-          activeProgress={indexing.activeProgress}
-          isPaused={indexing.isPaused}
-          onPause={indexing.pauseIndexing}
-          onResume={indexing.resumeIndexing}
-          onCancel={indexing.cancelIndexing}
-        />
+          {/* Search Settings Sheet */}
+          <SearchSettingsSheet
+            open={searchSettingsOpen}
+            onOpenChange={setSearchSettingsOpen}
+            status={indexing.status}
+            isIndexing={indexing.isIndexing}
+            onStartIndexing={indexing.startIndexing}
+            onClearIndex={indexing.clearIndex}
+            onRefreshStatus={indexing.refreshStatus}
+          />
 
-        {/* Search Settings Sheet */}
-        <SearchSettingsSheet
-          open={searchSettingsOpen}
-          onOpenChange={setSearchSettingsOpen}
-          status={indexing.status}
-          isIndexing={indexing.isIndexing}
-          onStartIndexing={indexing.startIndexing}
-          onClearIndex={indexing.clearIndex}
-          onRefreshStatus={indexing.refreshStatus}
-        />
+          {/* Toast Container */}
+          <Toaster position="bottom-right" />
 
-        {/* Toast Container */}
-        <Toaster position="bottom-right" />
-      </div>
+          {/* Background Deletions Floating Widget */}
+          <BackgroundDeletionsWidget />
+        </div>
+      </DeletionProvider>
     </ThemeProvider>
   );
 }
