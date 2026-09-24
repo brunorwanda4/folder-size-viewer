@@ -68,8 +68,6 @@ export function SearchView({
 		setQuery,
 		scope,
 		setScope,
-		mode,
-		setMode,
 		filterType,
 		setFilterType,
 		extensions,
@@ -412,43 +410,6 @@ export function SearchView({
 						>
 							<Folder className="h-3.5 w-3.5" />
 							{folderName ? `Folder: ${folderName}` : "Current Folder"}
-						</button>
-					</div>
-
-					{/* Search Mode Toggle */}
-					<div className="flex items-center bg-muted/60 p-0.5 rounded-lg border">
-						<button
-							type="button"
-							onClick={() => setMode("both")}
-							className={`px-2 py-1 rounded-md transition-colors ${
-								mode === "both"
-									? "bg-background text-foreground shadow-sm font-medium"
-									: "text-muted-foreground hover:text-foreground"
-							}`}
-						>
-							All
-						</button>
-						<button
-							type="button"
-							onClick={() => setMode("names")}
-							className={`px-2 py-1 rounded-md transition-colors ${
-								mode === "names"
-									? "bg-background text-foreground shadow-sm font-medium"
-									: "text-muted-foreground hover:text-foreground"
-							}`}
-						>
-							Names
-						</button>
-						<button
-							type="button"
-							onClick={() => setMode("contents")}
-							className={`px-2 py-1 rounded-md transition-colors ${
-								mode === "contents"
-									? "bg-background text-foreground shadow-sm font-medium"
-									: "text-muted-foreground hover:text-foreground"
-							}`}
-						>
-							Contents
 						</button>
 					</div>
 

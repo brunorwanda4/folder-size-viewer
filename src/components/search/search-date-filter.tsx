@@ -24,6 +24,8 @@ export function SearchDateFilter({
   const [open, setOpen] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<"range" | "multiple">("range");
 
+  const today = React.useMemo(() => new Date(), []);
+
   // State for Range Mode (comp-491)
   const [range, setRange] = React.useState<DateRange | undefined>(() => {
     if (modifiedFrom || modifiedTo) {
@@ -47,32 +49,56 @@ export function SearchDateFilter({
   }, [modifiedFrom, modifiedTo]);
 
   const handleRangeSelect = (selectedRange: DateRange | undefined) => {
-    setRange(selectedRange);
     if (!selectedRange) {
+      setRange(undefined);
       onChange(undefined, undefined);
       return;
     }
 
-    const fromMs = selectedRange.from
-      ? startOfDay(selectedRange.from).getTime()
-      : undefined;
-    const toMs = selectedRange.to
-      ? endOfDay(selectedRange.to).getTime()
-      : selectedRange.from
-      ? endOfDay(selectedRange.from).getTime()
+    const now = new Date();
+    // Clamp future dates to today
+    let fromDate = selectedRange.from;
+    if (fromDate && fromDate > now) {
+      fromDate = now;
+    }
+
+    let toDate = selectedRange.to;
+    if (toDate && toDate > now) {
+      toDate = now;
+    }
+
+    const clampedRange = { from: fromDate, to: toDate };
+    setRange(clampedRange);
+
+    const fromMs = fromDate ? startOfDay(fromDate).getTime() : undefined;
+    const toMs = toDate
+      ? endOfDay(toDate).getTime()
+      : fromDate
+      ? endOfDay(fromDate).getTime()
       : undefined;
 
     onChange(fromMs, toMs);
   };
 
   const handleMultipleSelect = (selectedDates: Date[] | undefined) => {
-    setMultipleDates(selectedDates);
     if (!selectedDates || selectedDates.length === 0) {
+      setMultipleDates(undefined);
       onChange(undefined, undefined);
       return;
     }
 
-    const timestamps = selectedDates.map((d) => d.getTime());
+    const now = new Date();
+    // Exclude any future dates
+    const validDates = selectedDates.filter((d) => d <= now);
+    if (validDates.length === 0) {
+      setMultipleDates(undefined);
+      onChange(undefined, undefined);
+      return;
+    }
+
+    setMultipleDates(validDates);
+
+    const timestamps = validDates.map((d) => d.getTime());
     const minDate = new Date(Math.min(...timestamps));
     const maxDate = new Date(Math.max(...timestamps));
 
@@ -239,6 +265,8 @@ export function SearchDateFilter({
                 selected={range}
                 onSelect={handleRangeSelect}
                 numberOfMonths={1}
+                disabled={{ after: today }}
+                endMonth={today}
                 className="p-1"
               />
             ) : (
@@ -247,6 +275,8 @@ export function SearchDateFilter({
                 selected={multipleDates}
                 onSelect={handleMultipleSelect}
                 numberOfMonths={1}
+                disabled={{ after: today }}
+                endMonth={today}
                 className="p-1"
               />
             )}
