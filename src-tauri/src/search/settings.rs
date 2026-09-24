@@ -9,6 +9,10 @@ pub struct IndexRoot {
     pub index_content: bool,
 }
 
+pub fn default_search_batch_size() -> usize {
+    50
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchSettings {
@@ -17,6 +21,8 @@ pub struct SearchSettings {
     pub max_content_size_mb: u64,
     pub writer_memory_budget_mb: usize,
     pub content_extensions: Vec<String>,
+    #[serde(default = "default_search_batch_size")]
+    pub search_batch_size: usize,
 }
 
 /// Detects all active, mounted drive roots on Windows (e.g. C:\, D:\, G:\)
@@ -50,6 +56,14 @@ pub fn default_exclusions() -> Vec<String> {
         ".next".to_string(),
         ".nuxt".to_string(),
         ".cache".to_string(),
+        ".cargo".to_string(),
+        ".rustup".to_string(),
+        ".npm".to_string(),
+        ".pnpm".to_string(),
+        ".yarn".to_string(),
+        ".gradle".to_string(),
+        ".m2".to_string(),
+        ".nuget".to_string(),
         "vendor".to_string(),
         "$Recycle.Bin".to_string(),
         "$RECYCLE.BIN".to_string(),
@@ -82,9 +96,10 @@ impl Default for SearchSettings {
             });
         }
 
-        // 2. Discover and include any secondary drives (e.g. D:\, G:\)
+        // 2. Discover and automatically add secondary fixed drives (e.g. G:\, D:\)
         for drive in detect_system_drives() {
             let drive_upper = drive.to_uppercase();
+            // Don't add C:\ root unconditionally as default if user home is C:\Users\..., but DO add secondary drives
             if !drive_upper.starts_with("C:")
                 && !roots
                     .iter()
@@ -115,6 +130,7 @@ impl Default for SearchSettings {
             max_content_size_mb: 2,
             writer_memory_budget_mb: 200,
             content_extensions,
+            search_batch_size: default_search_batch_size(),
         }
     }
 }
@@ -166,19 +182,35 @@ impl SearchSettings {
             }
         }
 
-        // Ensure default system exclusions exist if empty
+        // Ensure default system exclusions exist and essential ones are included
+        let defaults = default_exclusions();
         if settings.exclusions.is_empty() {
-            settings.exclusions = default_exclusions();
+            settings.exclusions = defaults;
+        } else {
+            for def in defaults {
+                if !settings
+                    .exclusions
+                    .iter()
+                    .any(|e| e.eq_ignore_ascii_case(&def))
+                {
+                    settings.exclusions.push(def);
+                }
+            }
+        }
+
+        if settings.search_batch_size == 0 {
+            settings.search_batch_size = default_search_batch_size();
         }
 
         settings
     }
 
     pub fn save(&self, app_data_dir: &Path) -> Result<(), String> {
-        let _ = fs::create_dir_all(app_data_dir);
         let file_path = Self::get_settings_file_path(app_data_dir);
         let content = serde_json::to_string_pretty(self)
-            .map_err(|e| format!("Failed to serialize settings: {}", e))?;
-        fs::write(&file_path, content).map_err(|e| format!("Failed to write settings file: {}", e))
+            .map_err(|e| format!("Failed to serialize search settings: {}", e))?;
+        fs::write(&file_path, content)
+            .map_err(|e| format!("Failed to write search settings file: {}", e))?;
+        Ok(())
     }
 }

@@ -106,150 +106,132 @@ export function SearchSettingsSheet({
         title: 'Select Folder to Index',
       });
 
-      if (!selected || typeof selected !== 'string' || !settings) return;
+      if (!selected || typeof selected !== 'string') return;
 
-      if (settings.roots.some((r) => r.path.toLowerCase() === selected.toLowerCase())) {
-        toast.info('Folder is already in the index list');
+      const pathToAdd = selected;
+      if (!settings) return;
+
+      if (settings.roots.some((r) => r.path === pathToAdd)) {
+        toast.info('Folder already configured', { description: pathToAdd });
         return;
       }
 
       const updated: SearchSettings = {
         ...settings,
-        roots: [...settings.roots, { path: selected, indexContent: true }],
+        roots: [...settings.roots, { path: pathToAdd, indexContent: true }],
       };
+
       await saveSettings(updated);
-      toast.success('Folder added to search index');
-    } catch (err) {
-      console.error('Failed to pick folder:', err);
+      toast.success('Indexed location added', { description: pathToAdd });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error('Failed to add folder', { description: msg });
     }
   };
 
-  const handleRemoveFolder = async (pathToRemove: string) => {
+  const handleRemoveFolder = async (folderPath: string) => {
     if (!settings) return;
     const updated: SearchSettings = {
       ...settings,
-      roots: settings.roots.filter((r) => r.path !== pathToRemove),
+      roots: settings.roots.filter((r) => r.path !== folderPath),
     };
     await saveSettings(updated);
+    toast.success('Removed indexed location', { description: folderPath });
   };
 
-  const handleToggleContent = async (path: string, checked: boolean) => {
+  const handleToggleContent = async (folderPath: string, indexContent: boolean) => {
     if (!settings) return;
     const updated: SearchSettings = {
       ...settings,
       roots: settings.roots.map((r) =>
-        r.path === path ? { ...r, indexContent: checked } : r
+        r.path === folderPath ? { ...r, indexContent } : r
       ),
     };
     await saveSettings(updated);
   };
 
-  const addExclusionItem = async (val: string): Promise<boolean> => {
-    const trimmed = val.trim();
-    if (!trimmed || !settings) return false;
+  const handleAddExclusion = async () => {
+    const trimmed = newExclusion.trim();
+    if (!trimmed || !settings) return;
 
-    if (settings.exclusions.some((ex) => ex.toLowerCase() === trimmed.toLowerCase())) {
-      toast.info(`"${trimmed}" is already in the exclusion list`);
-      return false;
+    if (settings.exclusions.includes(trimmed)) {
+      toast.info('Exclusion already exists', { description: trimmed });
+      setNewExclusion('');
+      return;
     }
 
     const updated: SearchSettings = {
       ...settings,
       exclusions: [...settings.exclusions, trimmed],
     };
+
     await saveSettings(updated);
-    toast.success(`Added "${trimmed}" to exclusions`);
-    return true;
+    setNewExclusion('');
+    toast.success('Exclusion added', { description: trimmed });
   };
 
-  const handleAddExclusion = async () => {
-    const val = newExclusion.trim();
-    if (!val) {
-      setDialogExclusionPath('');
-      setIsExclusionDialogOpen(true);
-      return;
-    }
-
-    const success = await addExclusionItem(val);
-    if (success) {
-      setNewExclusion('');
-    }
-  };
-
-  const handleRemoveExclusion = async (valToRemove: string) => {
+  const handleRemoveExclusion = async (exclusion: string) => {
     if (!settings) return;
     const updated: SearchSettings = {
       ...settings,
-      exclusions: settings.exclusions.filter((e) => e !== valToRemove),
+      exclusions: settings.exclusions.filter((e) => e !== exclusion),
     };
     await saveSettings(updated);
   };
 
-  const handleBrowseFolderForExclusion = async () => {
+  const handlePickExclusionFolder = async () => {
     try {
       const selected = await openDialog({
         directory: true,
-        multiple: true,
-        title: 'Select Folder(s) to Exclude',
+        multiple: false,
+        title: 'Select Folder to Exclude',
       });
-
-      if (!selected) return;
-
-      if (Array.isArray(selected) && selected.length > 0) {
-        if (selected.length === 1) {
-          setDialogExclusionPath(selected[0]);
-        } else {
-          for (const item of selected) {
-            await addExclusionItem(item);
-          }
-          setIsExclusionDialogOpen(false);
-          setDialogExclusionPath('');
-        }
-      } else if (typeof selected === 'string') {
+      if (selected && typeof selected === 'string') {
         setDialogExclusionPath(selected);
       }
     } catch (err) {
-      console.error('Failed to pick folder for exclusion:', err);
+      console.error('Failed to pick folder:', err);
     }
   };
 
-  const handleBrowseFileForExclusion = async () => {
+  const handlePickExclusionFile = async () => {
     try {
       const selected = await openDialog({
         directory: false,
-        multiple: true,
-        title: 'Select File(s) to Exclude',
+        multiple: false,
+        title: 'Select File to Exclude',
       });
-
-      if (!selected) return;
-
-      if (Array.isArray(selected) && selected.length > 0) {
-        if (selected.length === 1) {
-          setDialogExclusionPath(selected[0]);
-        } else {
-          for (const item of selected) {
-            await addExclusionItem(item);
-          }
-          setIsExclusionDialogOpen(false);
-          setDialogExclusionPath('');
-        }
-      } else if (typeof selected === 'string') {
+      if (selected && typeof selected === 'string') {
         setDialogExclusionPath(selected);
       }
     } catch (err) {
-      console.error('Failed to pick file for exclusion:', err);
+      console.error('Failed to pick file:', err);
     }
   };
 
-  const handleConfirmDialogAdd = async () => {
-    const val = dialogExclusionPath.trim();
-    if (!val) return;
-
-    const success = await addExclusionItem(val);
-    if (success) {
-      setDialogExclusionPath('');
+  const handleConfirmDialogExclusion = async () => {
+    const trimmed = dialogExclusionPath.trim();
+    if (!trimmed || !settings) {
       setIsExclusionDialogOpen(false);
+      return;
     }
+
+    if (settings.exclusions.includes(trimmed)) {
+      toast.info('Exclusion already exists', { description: trimmed });
+      setIsExclusionDialogOpen(false);
+      setDialogExclusionPath('');
+      return;
+    }
+
+    const updated: SearchSettings = {
+      ...settings,
+      exclusions: [...settings.exclusions, trimmed],
+    };
+
+    await saveSettings(updated);
+    toast.success('Exclusion added', { description: trimmed });
+    setDialogExclusionPath('');
+    setIsExclusionDialogOpen(false);
   };
 
   const handleMaxContentSizeChange = async (mb: number) => {
@@ -257,6 +239,15 @@ export function SearchSettingsSheet({
     const updated: SearchSettings = {
       ...settings,
       maxContentSizeMb: mb,
+    };
+    await saveSettings(updated);
+  };
+
+  const handleSearchBatchSizeChange = async (batchSize: number) => {
+    if (!settings || isNaN(batchSize) || batchSize < 10) return;
+    const updated: SearchSettings = {
+      ...settings,
+      searchBatchSize: batchSize,
     };
     await saveSettings(updated);
   };
@@ -270,7 +261,7 @@ export function SearchSettingsSheet({
             Search & Index Settings
           </SheetTitle>
           <SheetDescription>
-            Configure index roots, file content indexing, and exclusions.
+            Configure index roots, live streaming batch size, and exclusions.
           </SheetDescription>
         </SheetHeader>
 
@@ -358,6 +349,32 @@ export function SearchSettingsSheet({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+        </div>
+
+        {/* Streaming Search Batch Size */}
+        <div className="space-y-2 mb-6 p-3 border rounded-lg bg-card">
+          <div className="flex items-center justify-between text-xs">
+            <label htmlFor="search-batch-size" className="font-semibold text-foreground">
+              Search Stream Batch Size
+            </label>
+            <span className="text-muted-foreground">Default: 50 items</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Number of items discovered before updating the search view. Displays results progressively while scanning in background.
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <Input
+              id="search-batch-size"
+              type="number"
+              min={10}
+              max={500}
+              step={10}
+              value={settings?.searchBatchSize ?? 50}
+              onChange={(e) => handleSearchBatchSizeChange(parseInt(e.target.value, 10))}
+              className="h-8 w-24 text-xs font-mono"
+            />
+            <span className="text-xs text-muted-foreground">items per batch</span>
+          </div>
         </div>
 
         {/* Indexed Folders Section */}
@@ -508,7 +525,7 @@ export function SearchSettingsSheet({
               max={100}
               value={settings?.maxContentSizeMb ?? 2}
               onChange={(e) => handleMaxContentSizeChange(parseInt(e.target.value, 10))}
-              className="h-8 w-24 text-xs"
+              className="h-8 w-24 text-xs font-mono"
             />
             <span className="text-xs text-muted-foreground">MB (default 2 MB)</span>
           </div>
@@ -518,120 +535,65 @@ export function SearchSettingsSheet({
         <div className="flex items-start gap-2.5 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-950 dark:text-emerald-200 text-xs">
           <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
           <div>
-            <div className="font-semibold">Privacy First</div>
-            <div className="text-[11px] opacity-90 mt-0.5">
-              Everything stays on this computer. The Tantivy search index is stored locally in
-              your application data directory and never connects to any external server.
+            <div className="font-semibold mb-0.5">100% Local & Private</div>
+            <div className="text-emerald-800 dark:text-emerald-300">
+              The search index and file scans are kept completely on your device. No queries, filenames, or content ever leave your computer.
             </div>
           </div>
         </div>
       </SheetContent>
 
-      {/* Add Exclusion Dialog */}
+      {/* Exclusion Path Picker Dialog */}
       <Dialog open={isExclusionDialogOpen} onOpenChange={setIsExclusionDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <FolderPlus className="h-5 w-5 text-primary" />
-              Add Exclusion Rule
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Exclude a folder, file, or pattern from being indexed and searched.
+            <DialogTitle>Add Exclusion</DialogTitle>
+            <DialogDescription>
+              Select a folder or file to exclude from indexing and search.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            {/* Quick Picker Options */}
-            <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-3 py-2">
+            <div className="flex gap-2">
               <Button
                 type="button"
                 variant="outline"
-                className="flex items-center justify-start gap-2.5 h-14 p-3 border-dashed hover:border-primary hover:bg-primary/5 transition-colors"
-                onClick={handleBrowseFolderForExclusion}
+                className="flex-1"
+                onClick={handlePickExclusionFolder}
               >
-                <FolderOpen className="h-5 w-5 text-amber-500 shrink-0" />
-                <div className="text-left min-w-0">
-                  <div className="text-xs font-medium leading-none">Select Folder</div>
-                  <div className="text-[10px] text-muted-foreground mt-1 truncate">Pick folder to ignore</div>
-                </div>
+                <FolderOpen className="h-4 w-4 mr-2" />
+                Select Folder...
               </Button>
-
               <Button
                 type="button"
                 variant="outline"
-                className="flex items-center justify-start gap-2.5 h-14 p-3 border-dashed hover:border-primary hover:bg-primary/5 transition-colors"
-                onClick={handleBrowseFileForExclusion}
+                className="flex-1"
+                onClick={handlePickExclusionFile}
               >
-                <File className="h-5 w-5 text-blue-500 shrink-0" />
-                <div className="text-left min-w-0">
-                  <div className="text-xs font-medium leading-none">Select File</div>
-                  <div className="text-[10px] text-muted-foreground mt-1 truncate">Pick file to ignore</div>
-                </div>
+                <File className="h-4 w-4 mr-2" />
+                Select File...
               </Button>
             </div>
 
-            {/* Path / Name Input */}
-            <div className="space-y-1.5">
-              <label htmlFor="dialog-exclusion-input" className="text-xs font-medium text-foreground">
-                Folder Name, File Path, or Pattern
+            <div className="space-y-1">
+              <label htmlFor="exclusion-path-input" className="text-xs font-medium text-muted-foreground">
+                Path or Pattern:
               </label>
               <Input
-                id="dialog-exclusion-input"
-                placeholder="e.g. node_modules, .git, C:\path\to\ignore, *.log..."
+                id="exclusion-path-input"
+                placeholder="Selected path or pattern..."
                 value={dialogExclusionPath}
                 onChange={(e) => setDialogExclusionPath(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleConfirmDialogAdd();
-                  }
-                }}
-                className="h-9 text-xs font-mono"
-                autoFocus
+                className="text-xs font-mono"
               />
-              <p className="text-[11px] text-muted-foreground">
-                Matches any indexed path containing this text or specific file/folder location.
-              </p>
-            </div>
-
-            {/* Common Presets */}
-            <div className="space-y-1.5">
-              <div className="text-[11px] font-medium text-muted-foreground">
-                Quick Presets:
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {['node_modules', '.git', 'target', 'dist', 'build', '.cache', 'vendor', '.next', '*.log', '.env*'].map(
-                  (preset) => (
-                    <Badge
-                      key={preset}
-                      variant="outline"
-                      className="cursor-pointer text-[11px] font-mono hover:bg-secondary hover:text-foreground transition-colors"
-                      onClick={() => setDialogExclusionPath(preset)}
-                    >
-                      {preset}
-                    </Badge>
-                  )
-                )}
-              </div>
             </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsExclusionDialogOpen(false)}
-            >
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsExclusionDialogOpen(false)}>
               Cancel
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleConfirmDialogAdd}
-              disabled={!dialogExclusionPath.trim()}
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" />
+            <Button onClick={handleConfirmDialogExclusion} disabled={!dialogExclusionPath.trim()}>
               Add Exclusion
             </Button>
           </DialogFooter>

@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Square,
 } from "lucide-react";
 import { useDeletion } from "@/context/DeletionContext";
 import { Progress } from "@/components/ui/progress";
@@ -21,7 +22,7 @@ import { FileIcon } from "./file-icon";
 import { formatBytes, formatNumber, formatSecondsLeft } from "@/lib/format";
 
 export function BackgroundDeletionsWidget() {
-  const { minimizedTasks, maximizeTask, dismissTask } = useDeletion();
+  const { minimizedTasks, maximizeTask, dismissTask, stopDeleting } = useDeletion();
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
   if (minimizedTasks.length === 0) {
@@ -114,7 +115,7 @@ export function BackgroundDeletionsWidget() {
                   key={task.id}
                   className="p-2.5 rounded-xl bg-background/80 border border-border/50 space-y-2 text-xs hover:border-border transition-colors"
                 >
-                  {/* Task Top Row: Icon, Name, Maximize/Dismiss Buttons */}
+                  {/* Task Top Row: Icon, Name, Stop/Maximize/Dismiss Buttons */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <FileIcon
@@ -138,15 +139,26 @@ export function BackgroundDeletionsWidget() {
 
                     <div className="flex items-center gap-1 shrink-0">
                       {isDeleting && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted"
-                          onClick={() => maximizeTask(task.id)}
-                          title="Open dialog"
-                        >
-                          <Maximize2 className="w-3 h-3" />
-                        </Button>
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive hover:bg-destructive/15"
+                            onClick={() => stopDeleting(task.id)}
+                            title="Stop deleting"
+                          >
+                            <Square className="w-3 h-3 fill-current" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted"
+                            onClick={() => maximizeTask(task.id)}
+                            title="Open dialog"
+                          >
+                            <Maximize2 className="w-3 h-3" />
+                          </Button>
+                        </>
                       )}
                       {(isDone || isError) && (
                         <Button
@@ -171,8 +183,7 @@ export function BackgroundDeletionsWidget() {
                           Deleting in background...
                         </span>
                         <span className="font-mono font-bold text-destructive">
-                          {task.percentage}%
-                        </span>
+                          {task.percentage}%\n                        </span>
                       </div>
                       <Progress
                         value={task.percentage}
@@ -258,7 +269,9 @@ export function BackgroundDeletionsWidget() {
                   {isDeleting && task.currentName && (
                     <div className="text-[10px] text-muted-foreground font-mono truncate px-1.5 py-0.5 rounded bg-muted/30 border border-border/20">
                       <span className="text-muted-foreground/70">Deleting: </span>
-                      <span className="text-foreground">{task.currentName}</span>
+                      <span className="font-semibold text-foreground">
+                        {task.currentName}
+                      </span>
                     </div>
                   )}
                 </div>

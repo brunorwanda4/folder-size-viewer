@@ -11,6 +11,7 @@ import {
   HardDrive,
   FileText,
   Minimize2,
+  Square,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -72,6 +73,7 @@ export function ResultsTable({
     requestDelete,
     cancelPendingDelete,
     confirmDelete,
+    stopDeleting,
     minimizeTask,
   } = useDeletion();
 
@@ -526,24 +528,35 @@ export function ResultsTable({
           <AlertDialogFooter className="gap-2 sm:gap-2 mt-2 flex flex-col sm:flex-row justify-between items-stretch sm:items-center">
             {isDeletingModal ? (
               <>
+                <div className="flex items-center gap-2 order-2 sm:order-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      activeModalTask && minimizeTask(activeModalTask.id)
+                    }
+                    className="gap-1.5"
+                  >
+                    <Minimize2 className="w-4 h-4" />
+                    <span>Minimize</span>
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => stopDeleting(activeModalTask?.id)}
+                    className="gap-1.5 shadow-sm"
+                  >
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                    <span>Stop Deleting</span>
+                  </Button>
+                </div>
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    activeModalTask && minimizeTask(activeModalTask.id)
-                  }
-                  className="gap-1.5 order-2 sm:order-1"
-                >
-                  <Minimize2 className="w-4 h-4" />
-                  <span>Minimize to Background</span>
-                </Button>
-                <Button
-                  variant="destructive"
+                  variant="secondary"
                   size="sm"
                   disabled
                   className="gap-1.5 min-w-[130px] order-1 sm:order-2"
                 >
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin text-destructive" />
                   <span>Deleting ({activeModalTask?.percentage}%)...</span>
                 </Button>
               </>

@@ -15,6 +15,7 @@ import {
 } from "@/types/scan";
 import { notifyDeleteComplete } from "@/lib/notifications";
 import { formatBytes } from "@/lib/format";
+import { useAppErrors } from "@/context/ErrorContext";
 
 interface DeletionContextType {
   tasks: DeletionTask[];
@@ -26,6 +27,7 @@ interface DeletionContextType {
   confirmDelete: (
     onItemDeleted?: (path: string, sizeBytes: number) => void
   ) => Promise<void>;
+  stopDeleting: (taskId?: string) => Promise<void>;
   minimizeTask: (taskId: string) => void;
   maximizeTask: (taskId: string) => void;
   dismissTask: (taskId: string) => void;
@@ -41,6 +43,7 @@ export function DeletionProvider({ children }: { children: ReactNode }) {
     null
   );
 
+  const { addError, openErrorPage } = useAppErrors();
   const timersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   const activeModalTask =
@@ -55,6 +58,27 @@ export function DeletionProvider({ children }: { children: ReactNode }) {
 
   const cancelPendingDelete = useCallback(() => {
     setPendingCandidate(null);
+  }, []);
+
+  const stopDeleting = useCallback(async (taskId?: string) => {
+    try {
+      await invoke("cancel_delete");
+      if (taskId) {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, status: "cancelled" } : t))
+        );
+      } else {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.status === "deleting" ? { ...t, status: "cancelled" } : t
+          )
+        );
+      }
+      setActiveModalTaskId(null);
+      toast.info("Deletion stopped");
+    } catch (err) {
+      console.error("Failed to stop deletion:", err);
+    }
   }, []);
 
   const dismissTask = useCallback((taskId: string) => {
@@ -179,9 +203,31 @@ export function DeletionProvider({ children }: { children: ReactNode }) {
       try {
         await invoke("delete_item", {
           path: entryToDelete.path,
-          isDir: entryToDelete.isDir,
-          onEvent: channel,
         });
+
+        // If command finished and was not caught as an error, mark as done
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId && t.status === "deleting"
+              ? {
+                  ...t,
+                  status: "done",
+                  percentage: 100,
+                  elapsedSeconds: (Date.now() - t.startTime) / 1000,
+                }
+              : t
+          )
+        );
+
+        toast.success("Deleted Successfully", {
+          description: `Permanently removed "${entryToDelete.name}" (${formatBytes(
+            entryToDelete.sizeBytes
+          )})`,
+        });
+
+        if (onItemDeleted) {
+          onItemDeleted(entryToDelete.path, entryToDelete.sizeBytes);
+        }
       } catch (err: unknown) {
         const errorMsg =
           typeof err === "string"
@@ -190,24 +236,52 @@ export function DeletionProvider({ children }: { children: ReactNode }) {
             ? err.message
             : "An error occurred during deletion";
 
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === taskId
-              ? {
-                  ...t,
-                  status: "error",
-                  error: errorMsg,
-                }
-              : t
-          )
-        );
+        const isCancelled =
+          errorMsg.toLowerCase().includes("stopped") ||
+          errorMsg.toLowerCase().includes("cancelled");
 
-        toast.error("Deletion Failed", {
-          description: errorMsg,
-        });
+        if (isCancelled) {
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId ? { ...t, status: "cancelled" } : t
+            )
+          );
+          toast.info("Deletion Stopped", {
+            description: `Deletion of "${entryToDelete.name}" was cancelled.`,
+          });
+        } else {
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    status: "error",
+                    error: errorMsg,
+                  }
+                : t
+            )
+          );
+
+          addError({
+            title: `Failed to delete "${entryToDelete.name}"`,
+            message: errorMsg,
+            source: "deletion",
+            path: entryToDelete.path,
+            isDir: entryToDelete.isDir,
+          });
+
+          toast.error("Deletion Failed", {
+            description: errorMsg,
+            action: {
+              label: "View & Fix",
+              onClick: () => openErrorPage(),
+            },
+            duration: 8000,
+          });
+        }
       }
     },
-    [pendingCandidate, dismissTask]
+    [pendingCandidate, dismissTask, addError, openErrorPage]
   );
 
   return (
@@ -220,6 +294,7 @@ export function DeletionProvider({ children }: { children: ReactNode }) {
         requestDelete,
         cancelPendingDelete,
         confirmDelete,
+        stopDeleting,
         minimizeTask,
         maximizeTask,
         dismissTask,
@@ -238,6 +313,7 @@ const defaultDeletionContext: DeletionContextType = {
   requestDelete: () => {},
   cancelPendingDelete: () => {},
   confirmDelete: async () => {},
+  stopDeleting: async () => {},
   minimizeTask: () => {},
   maximizeTask: () => {},
   dismissTask: () => {},

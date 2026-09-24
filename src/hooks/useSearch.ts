@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import type { SearchHit, SearchResult, SearchParams } from '@/types/search';
-
-const PAGE_SIZE = 50;
+import { invoke, Channel } from '@tauri-apps/api/core';
+import type { SearchHit, SearchStreamEvent } from '@/types/search';
 
 export function useSearch(currentFolderPath?: string) {
   const [query, setQuery] = useState('');
@@ -18,7 +16,7 @@ export function useSearch(currentFolderPath?: string) {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Request ID to ignore responses from stale queries
+  // Request ID to ignore events from stale queries
   const latestRequestId = useRef(0);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -28,9 +26,7 @@ export function useSearch(currentFolderPath?: string) {
       sc: 'computer' | 'folder',
       m: 'both' | 'names' | 'contents',
       ft: 'all' | 'files' | 'folders',
-      fc: string,
-      offset: number = 0,
-      append: boolean = false
+      fc: string
     ) => {
       const cleanQuery = q.trim();
       if (!cleanQuery) {
@@ -40,68 +36,75 @@ export function useSearch(currentFolderPath?: string) {
         setIsSearching(false);
         setIsLoadingMore(false);
         setError(null);
+        invoke('cancel_search').catch(() => {});
         return;
       }
 
       const reqId = ++latestRequestId.current;
+      invoke('cancel_search').catch(() => {});
 
-      if (append) {
-        setIsLoadingMore(true);
-      } else {
-        setIsSearching(true);
-      }
+      setIsSearching(true);
       setError(null);
 
+      // Create Tauri IPC streaming channel
+      const onEvent = new Channel<SearchStreamEvent>();
+      let isFirstBatch = true;
+
+      onEvent.onmessage = (event) => {
+        if (reqId !== latestRequestId.current) {
+          return;
+        }
+
+        if (event.type === 'batch') {
+          if (isFirstBatch) {
+            isFirstBatch = false;
+            setHits(event.hits);
+          } else {
+            setHits((prev) => {
+              const seen = new Set(prev.map((h) => h.path.toLowerCase()));
+              const fresh = event.hits.filter((h) => !seen.has(h.path.toLowerCase()));
+              return [...prev, ...fresh];
+            });
+          }
+          setTotal(event.total);
+          setTookMs(event.tookMs);
+        } else if (event.type === 'done') {
+          setTotal(event.total);
+          setTookMs(event.tookMs);
+          setIsSearching(false);
+        }
+      };
+
       try {
-        const params: SearchParams = {
+        await invoke('stream_search', {
           query: cleanQuery,
           scope: sc,
           currentPath: sc === 'folder' ? currentFolderPath : undefined,
           mode: m,
           filterType: ft === 'all' ? undefined : ft,
           filterCategory: fc === 'all' ? undefined : fc,
-          limit: PAGE_SIZE,
-          offset,
-        };
-
-        const res = await invoke<SearchResult>('search', params as unknown as Record<string, unknown>);
-
-        // Discard if superseded by a newer query
-        if (reqId !== latestRequestId.current) {
-          return;
-        }
-
-        if (append) {
-          setHits((prev) => [...prev, ...res.hits]);
-        } else {
-          setHits(res.hits);
-        }
-        setTotal(res.total);
-        setTookMs(res.tookMs);
+          onEvent,
+        });
       } catch (err: unknown) {
         if (reqId === latestRequestId.current) {
           const msg = err instanceof Error ? err.message : String(err);
           setError(msg);
-        }
-      } finally {
-        if (reqId === latestRequestId.current) {
           setIsSearching(false);
-          setIsLoadingMore(false);
         }
       }
     },
     [currentFolderPath]
   );
 
-  // Trigger search when query or filters change (debounced 250ms for smooth typing)
+  // Trigger search when query or filters change (debounced 200ms for responsiveness)
   useEffect(() => {
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
 
     debounceTimer.current = setTimeout(() => {
-      performSearch(query, scope, mode, filterType, filterCategory, 0, false);
-    }, 250);
+      performSearch(query, scope, mode, filterType, filterCategory);
+    }, 200);
 
     return () => {
       if (debounceTimer.current) {
@@ -111,17 +114,15 @@ export function useSearch(currentFolderPath?: string) {
   }, [query, scope, mode, filterType, filterCategory, performSearch]);
 
   const loadMore = useCallback(() => {
-    if (isSearching || isLoadingMore || hits.length >= total) {
-      return;
-    }
-    performSearch(query, scope, mode, filterType, filterCategory, hits.length, true);
-  }, [isSearching, isLoadingMore, hits.length, total, query, scope, mode, filterType, filterCategory, performSearch]);
+    // Streaming search automatically searches and streams in the background
+  }, []);
 
   const clearSearch = useCallback(() => {
     setQuery('');
     setHits([]);
     setTotal(0);
     setTookMs(0);
+    invoke('cancel_search').catch(() => {});
   }, []);
 
   return {

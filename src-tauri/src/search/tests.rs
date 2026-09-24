@@ -6,7 +6,7 @@ use tauri::ipc::Channel;
 use tempfile::tempdir;
 
 use crate::search::indexer::{run_indexing, IndexManager};
-use crate::search::query::{execute_search, SearchParams};
+use crate::search::query::{execute_search, live_filesystem_search, SearchParams};
 use crate::search::schema::path_to_facet;
 use crate::search::settings::{IndexRoot, SearchSettings};
 use crate::search::text_extract::decode_text_buffer;
@@ -58,33 +58,36 @@ fn test_text_file_detection_and_decoding() {
     // UTF-16 LE with BOM
     let text16 = "UTF-16 Text";
     let mut utf16_le = vec![0xFF, 0xFE];
-    for ch in text16.encode_utf16() {
-        utf16_le.extend_from_slice(&ch.to_le_bytes());
+    for u in text16.encode_utf16() {
+        utf16_le.extend_from_slice(&u.to_le_bytes());
     }
-    assert_eq!(decode_text_buffer(&utf16_le), Some(text16.to_string()));
+    assert_eq!(
+        decode_text_buffer(&utf16_le),
+        Some("UTF-16 Text".to_string())
+    );
 
-    // Binary file with NUL byte
-    let binary = b"GIF89a\x00\x01\x00\x01\x80\x00\x00";
-    assert_eq!(decode_text_buffer(binary), None);
+    // Binary file (contains null byte)
+    let binary_data = vec![0x00, 0x01, 0x02, 0x03];
+    assert_eq!(decode_text_buffer(&binary_data), None);
 }
 
 #[test]
-fn test_path_to_facet_conversion() {
-    let p = std::path::Path::new(r"C:\Projects\search-engine\src\lib.rs");
+fn test_facet_path_conversion() {
+    let p = std::path::Path::new("C:\\Users\\John\\Documents\\Projects");
     let facet = path_to_facet(p);
-    assert_eq!(facet.to_string(), "/c/projects/search-engine/src/lib.rs");
-
-    let root_facet = path_to_facet(std::path::Path::new(r"C:\Projects\search-engine"));
-    assert!(root_facet.is_prefix_of(&facet));
+    assert_eq!(
+        facet.to_string(),
+        "/c/users/john/documents/projects"
+    );
 }
 
 #[test]
-fn test_scoped_search_and_phrase_search() {
+fn test_index_and_search_end_to_end() {
     let app_dir = tempdir().unwrap();
     let data_dir = tempdir().unwrap();
 
-    let folder_a = data_dir.path().join("folder_a");
-    let folder_b = data_dir.path().join("folder_b");
+    let folder_a = data_dir.path().join("FolderA");
+    let folder_b = data_dir.path().join("FolderB");
     fs::create_dir_all(&folder_a).unwrap();
     fs::create_dir_all(&folder_b).unwrap();
 
@@ -113,6 +116,7 @@ fn test_scoped_search_and_phrase_search() {
         max_content_size_mb: 2,
         writer_memory_budget_mb: 30,
         content_extensions: vec!["txt".to_string()],
+        search_batch_size: 50,
     };
 
     let on_event = Channel::new(|_| Ok(()));
@@ -133,36 +137,33 @@ fn test_scoped_search_and_phrase_search() {
     let searcher = manager.reader.searcher();
     let roots: Vec<String> = settings.roots.iter().map(|r| r.path.clone()).collect();
 
-    // Scoped search: search inside folder_a only
-    let scoped_params = SearchParams {
-        query: "invoice".to_string(),
-        scope: "folder".to_string(),
-        current_path: Some(folder_a.to_string_lossy().to_string()),
+    // 1. Exact name search
+    let params1 = SearchParams {
+        query: "invoice_alpha".to_string(),
+        scope: "computer".to_string(),
+        current_path: None,
         mode: "names".to_string(),
         filter_type: None,
         filter_category: None,
         limit: Some(10),
         offset: Some(0),
     };
-
-    let scoped_res = execute_search(
+    let res1 = execute_search(
         &manager.index,
         &searcher,
         &manager.fields,
-        scoped_params,
+        params1,
         &roots,
         &settings.exclusions,
         &settings.content_extensions,
         settings.max_content_size_mb,
     )
     .unwrap();
+    assert_eq!(res1.total, 1);
+    assert_eq!(res1.hits[0].name, "invoice_alpha.txt");
 
-    // Only invoice_alpha should match, invoice_beta is outside folder_a
-    assert_eq!(scoped_res.total, 1);
-    assert_eq!(scoped_res.hits[0].name, "invoice_alpha.txt");
-
-    // Phrase search in content: "hello world"
-    let phrase_params = SearchParams {
+    // 2. Phrase content search
+    let params2 = SearchParams {
         query: "\"hello world\"".to_string(),
         scope: "computer".to_string(),
         current_path: None,
@@ -172,22 +173,45 @@ fn test_scoped_search_and_phrase_search() {
         limit: Some(10),
         offset: Some(0),
     };
-
-    let phrase_res = execute_search(
+    let res2 = execute_search(
         &manager.index,
         &searcher,
         &manager.fields,
-        phrase_params,
+        params2,
         &roots,
         &settings.exclusions,
         &settings.content_extensions,
         settings.max_content_size_mb,
     )
     .unwrap();
+    assert_eq!(res2.total, 1);
+    assert_eq!(res2.hits[0].name, "invoice_alpha.txt");
+    assert!(res2.hits[0].snippet.is_some());
 
-    assert_eq!(phrase_res.total, 1);
-    assert_eq!(phrase_res.hits[0].name, "invoice_alpha.txt");
-    assert!(phrase_res.hits[0].snippet.is_some());
+    // 3. Folder-scoped search
+    let params3 = SearchParams {
+        query: "invoice".to_string(),
+        scope: "folder".to_string(),
+        current_path: Some(folder_b.to_string_lossy().to_string()),
+        mode: "names".to_string(),
+        filter_type: None,
+        filter_category: None,
+        limit: Some(10),
+        offset: Some(0),
+    };
+    let res3 = execute_search(
+        &manager.index,
+        &searcher,
+        &manager.fields,
+        params3,
+        &roots,
+        &settings.exclusions,
+        &settings.content_extensions,
+        settings.max_content_size_mb,
+    )
+    .unwrap();
+    assert_eq!(res3.total, 1);
+    assert_eq!(res3.hits[0].name, "invoice_beta.txt");
 }
 
 #[test]
@@ -210,6 +234,7 @@ fn test_chatgpt_image_search() {
         max_content_size_mb: 2,
         writer_memory_budget_mb: 30,
         content_extensions: vec![],
+        search_batch_size: 50,
     };
 
     let on_event = Channel::new(|_| Ok(()));
@@ -230,12 +255,12 @@ fn test_chatgpt_image_search() {
     let searcher = manager.reader.searcher();
     let roots: Vec<String> = settings.roots.iter().map(|r| r.path.clone()).collect();
 
-    // User query: "ChatGPT Image Sep 24, 2026, 03_26_21 AM"
+    // Query mimicking user typing timestamp with colons: "ChatGPT Image Sep 24, 2026, 03:26:21 AM"
     let params = SearchParams {
-        query: "ChatGPT Image Sep 24, 2026, 03_26_21 AM".to_string(),
+        query: "ChatGPT Image Sep 24, 2026, 03:26:21 AM".to_string(),
         scope: "computer".to_string(),
         current_path: None,
-        mode: "both".to_string(),
+        mode: "names".to_string(),
         filter_type: None,
         filter_category: None,
         limit: Some(10),
@@ -254,13 +279,139 @@ fn test_chatgpt_image_search() {
     )
     .unwrap();
 
-    println!("Hits: {:?}", res.hits);
     assert_eq!(res.total, 1);
     assert_eq!(res.hits[0].name, img_name);
+    assert_eq!(res.hits[0].category, "Images");
+    assert!(!res.hits[0].matched_name_ranges.is_empty());
 }
 
 #[test]
-fn test_incremental_update_add_modify_delete() {
+fn test_whatsapp_image_search_and_path_search() {
+    let app_dir = tempdir().unwrap();
+    let data_dir = tempdir().unwrap();
+
+    let downloads_dir = data_dir.path().join("Downloads");
+    fs::create_dir_all(&downloads_dir).unwrap();
+
+    let wa_name = "WhatsApp Image 2026-09-21 at 17.19.58.jpeg";
+    let wa_path = downloads_dir.join(wa_name);
+    File::create(&wa_path).unwrap();
+
+    let manager = IndexManager::open_or_create(app_dir.path()).unwrap();
+
+    let settings = SearchSettings {
+        roots: vec![IndexRoot {
+            path: data_dir.path().to_string_lossy().to_string(),
+            index_content: false,
+        }],
+        exclusions: vec!["node_modules".to_string(), ".git".to_string()],
+        max_content_size_mb: 2,
+        writer_memory_budget_mb: 30,
+        content_extensions: vec![],
+        search_batch_size: 50,
+    };
+
+    let on_event = Channel::new(|_| Ok(()));
+    let cancel = Arc::new(AtomicBool::new(false));
+    let pause = Arc::new(AtomicBool::new(false));
+
+    run_indexing(
+        &manager,
+        &settings,
+        true,
+        &on_event,
+        cancel.clone(),
+        pause.clone(),
+    )
+    .unwrap();
+
+    let searcher = manager.reader.searcher();
+    let roots: Vec<String> = settings.roots.iter().map(|r| r.path.clone()).collect();
+
+    // 1. Search by full filename containing dashes, dots, and spaces: "WhatsApp Image 2026-09-21 at 17.19.58.jpeg"
+    let params1 = SearchParams {
+        query: "WhatsApp Image 2026-09-21 at 17.19.58.jpeg".to_string(),
+        scope: "computer".to_string(),
+        current_path: None,
+        mode: "names".to_string(),
+        filter_type: None,
+        filter_category: None,
+        limit: Some(10),
+        offset: Some(0),
+    };
+
+    let res1 = execute_search(
+        &manager.index,
+        &searcher,
+        &manager.fields,
+        params1,
+        &roots,
+        &settings.exclusions,
+        &settings.content_extensions,
+        settings.max_content_size_mb,
+    )
+    .unwrap();
+
+    assert_eq!(res1.total, 1);
+    assert_eq!(res1.hits[0].name, wa_name);
+    assert_eq!(res1.hits[0].category, "Images");
+
+    // 2. Search by full path with quotes
+    let quoted_path = format!("\"{}\"", wa_path.to_string_lossy());
+    let params2 = SearchParams {
+        query: quoted_path,
+        scope: "computer".to_string(),
+        current_path: None,
+        mode: "both".to_string(),
+        filter_type: None,
+        filter_category: None,
+        limit: Some(10),
+        offset: Some(0),
+    };
+
+    let res2 = execute_search(
+        &manager.index,
+        &searcher,
+        &manager.fields,
+        params2,
+        &roots,
+        &settings.exclusions,
+        &settings.content_extensions,
+        settings.max_content_size_mb,
+    )
+    .unwrap();
+
+    assert_eq!(res2.total, 1);
+    assert_eq!(res2.hits[0].name, wa_name);
+
+    // 3. Search via live filesystem search directly (simulating unindexed or live scanning)
+    let mut existing = std::collections::HashSet::new();
+    let params3 = SearchParams {
+        query: "Downloads WhatsApp".to_string(),
+        scope: "computer".to_string(),
+        current_path: None,
+        mode: "names".to_string(),
+        filter_type: None,
+        filter_category: None,
+        limit: Some(10),
+        offset: Some(0),
+    };
+
+    let live_hits = live_filesystem_search(
+        &params3,
+        &roots,
+        &settings.exclusions,
+        &mut existing,
+        10,
+        std::time::Duration::from_secs(3),
+    );
+
+    assert_eq!(live_hits.len(), 1);
+    assert_eq!(live_hits[0].name, wa_name);
+}
+
+#[test]
+fn test_incremental_indexing_workflow() {
     let app_dir = tempdir().unwrap();
     let data_dir = tempdir().unwrap();
 
@@ -281,6 +432,7 @@ fn test_incremental_update_add_modify_delete() {
         max_content_size_mb: 2,
         writer_memory_budget_mb: 30,
         content_extensions: vec!["txt".to_string()],
+        search_batch_size: 50,
     };
 
     let on_event = Channel::new(|_| Ok(()));

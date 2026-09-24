@@ -33,6 +33,8 @@ pub fn run() {
             commands::reveal_in_explorer,
             commands::get_default_paths,
             commands::delete_item,
+            commands::cancel_delete,
+            commands::force_fix_delete,
             search::commands::get_search_settings,
             search::commands::save_search_settings,
             search::commands::get_index_status,
@@ -42,6 +44,8 @@ pub fn run() {
             search::commands::cancel_indexing,
             search::commands::clear_index,
             search::commands::search,
+            search::commands::stream_search,
+            search::commands::cancel_search,
             search::commands::open_path,
         ])
         .run(tauri::generate_context!())

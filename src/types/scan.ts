@@ -53,7 +53,7 @@ export interface DeletionTask {
   isDir: boolean;
   totalSize: number;
   totalFiles: number;
-  status: "deleting" | "done" | "error";
+  status: "deleting" | "done" | "error" | "cancelled";
   percentage: number;
   filesLeft: number;
   bytesLeft: number;

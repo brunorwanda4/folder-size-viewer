@@ -28,18 +28,6 @@ export default function HomePage() {
         </div>
 
         <div className="container mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 text-center">
-          <div className="mb-6 flex justify-center">
-            <div className="size-16 sm:size-20 rounded-2xl bg-fd-card border border-fd-border/80 p-2 shadow-lg shadow-sky-500/5 backdrop-blur-sm flex items-center justify-center overflow-hidden">
-              <Image
-                src="/logo.png"
-                alt="Folder Size Viewer Logo"
-                width={80}
-                height={80}
-                className="size-full object-contain rounded-xl"
-                priority
-              />
-            </div>
-          </div>
 
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl md:text-7xl text-fd-foreground">
             Folder Size Viewer

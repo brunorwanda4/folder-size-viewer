@@ -20,6 +20,19 @@ export interface SearchResult {
   tookMs: number;
 }
 
+export type SearchStreamEvent =
+  | {
+      type: 'batch';
+      hits: SearchHit[];
+      total: number;
+      tookMs: number;
+    }
+  | {
+      type: 'done';
+      total: number;
+      tookMs: number;
+    };
+
 export interface SearchParams extends Record<string, unknown> {
   query: string;
   scope: 'computer' | 'folder';
@@ -50,6 +63,7 @@ export interface SearchSettings {
   maxContentSizeMb: number;
   writerMemoryBudgetMb: number;
   contentExtensions: string[];
+  searchBatchSize: number;
 }
 
 export type IndexEvent =
